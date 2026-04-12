@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import { scanSubreddit, scanMultipleSubreddits } from "../redditMonitor";
-import { readCompetitiveCache, runCompetitiveDaily } from "../competitive/runDaily";
+/** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败，连 reddit/convert 都会返回 HTML 错误页 */
 
 const __dirnameApi = path.dirname(fileURLToPath(import.meta.url));
 const MONITOR_CACHE_FILE = path.join(__dirnameApi, "..", ".data", "monitor-cache.json");
@@ -414,6 +414,7 @@ app.post("/api/monitor/scan", async (req, res) => {
 
 app.get("/api/competitive/cache", async (_req, res) => {
   try {
+    const { readCompetitiveCache } = await import("../competitive/runDaily");
     const cache = await readCompetitiveCache();
     res.json({ success: true, cache: cache || null });
   } catch (error: any) {
@@ -423,6 +424,7 @@ app.get("/api/competitive/cache", async (_req, res) => {
 
 app.post("/api/competitive/sync", async (_req, res) => {
   try {
+    const { runCompetitiveDaily } = await import("../competitive/runDaily");
     const cache = await runCompetitiveDaily();
     res.json({ success: true, cache });
   } catch (error: any) {

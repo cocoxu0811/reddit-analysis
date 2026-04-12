@@ -1170,7 +1170,14 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: redditUrl.trim() }),
       });
-      const data = await response.json() as RedditConvertResponse & { error?: string };
+      const ct = response.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(
+          text.slice(0, 120) || `Expected JSON, got ${ct || 'unknown'} (HTTP ${response.status})`
+        );
+      }
+      const data = (await response.json()) as RedditConvertResponse & { error?: string };
       if (!response.ok) {
         throw new Error(data.error || 'convert failed');
       }
