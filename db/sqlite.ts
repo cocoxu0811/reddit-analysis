@@ -1,28 +1,48 @@
 /**
  * 本地 SQLite（.data/app.db），与 JSON 双写；读时优先 DB，空则回读 JSON 并回填。
- * 使用 Node.js 内置 node:sqlite（需 Node ≥ 22.5），无需原生编译依赖。
+ * 使用 Node.js 内置 node:sqlite（需 Node ≥ 22.5）。
+ *
+ * 勿在模块顶层 `import from "node:sqlite"`：Vercel 若 Node&lt;22 或打包环境缺失该内置模块时，
+ * 会导致整链 `import()` 失败并返回 HTML 错误页。此处用 createRequire 惰性加载，失败则 KV 读写降级为 no-op。
  */
 import fs from "fs";
 import path from "path";
-import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+
+type DatabaseSyncInstance = InstanceType<
+  typeof import("node:sqlite").DatabaseSync
+>;
+
+let DatabaseSyncCtor: (typeof import("node:sqlite").DatabaseSync) | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  DatabaseSyncCtor = require("node:sqlite").DatabaseSync;
+} catch {
+  DatabaseSyncCtor = null;
+}
 
 /** 与 server 写入的 .data/*.json 一致：请在项目根目录启动（npm run dev / node dist/server.cjs） */
 export const DATA_DIR = path.join(process.cwd(), ".data");
 export const DB_PATH = path.join(DATA_DIR, "app.db");
 
-let db: DatabaseSync | null = null;
+let db: DatabaseSyncInstance | null = null;
 
-export function getDb(): DatabaseSync {
+export function getDb(): DatabaseSyncInstance {
+  if (!DatabaseSyncCtor) {
+    throw new Error("SQLite unavailable (requires Node.js 22.5+ with built-in node:sqlite)");
+  }
   if (!db) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    db = new DatabaseSync(DB_PATH, { enableForeignKeyConstraints: true });
+    db = new DatabaseSyncCtor(DB_PATH, { enableForeignKeyConstraints: true });
     db.exec("PRAGMA journal_mode = WAL;");
     initSchema(db);
   }
   return db;
 }
 
-function initSchema(database: DatabaseSync) {
+function initSchema(database: DatabaseSyncInstance) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS analysis_history (
       id TEXT PRIMARY KEY NOT NULL,
@@ -122,26 +142,34 @@ export function replaceHistoryInDb(records: HistoryRow[]): void {
 }
 
 export function getKvJson(key: string): unknown | null {
-  const database = getDb();
-  const row = database.prepare(`SELECT v FROM kv_store WHERE k = ?`).get(key) as { v: string } | undefined;
-  if (!row?.v) return null;
   try {
-    return JSON.parse(row.v);
+    const database = getDb();
+    const row = database.prepare(`SELECT v FROM kv_store WHERE k = ?`).get(key) as { v: string } | undefined;
+    if (!row?.v) return null;
+    try {
+      return JSON.parse(row.v);
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   }
 }
 
 export function setKvJson(key: string, value: unknown): void {
-  const database = getDb();
-  const now = new Date().toISOString();
-  const v = JSON.stringify(value);
-  database
-    .prepare(
-      `INSERT INTO kv_store (k, v, updated_at) VALUES (?, ?, ?)
+  try {
+    const database = getDb();
+    const now = new Date().toISOString();
+    const v = JSON.stringify(value);
+    database
+      .prepare(
+        `INSERT INTO kv_store (k, v, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(k) DO UPDATE SET v = excluded.v, updated_at = excluded.updated_at`
-    )
-    .run(key, v, now);
+      )
+      .run(key, v, now);
+  } catch {
+    /* 只读 FS / 无 sqlite 时跳过 */
+  }
 }
 
 export function setMonitorCacheKv(payload: unknown): void {

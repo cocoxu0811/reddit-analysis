@@ -5,7 +5,10 @@ import { resolveInstagramParams, runInstagramScraper } from "./instagramApify";
 
 const ROOT = process.cwd();
 export const COMPETITIVE_CONFIG_FILE = path.join(ROOT, ".data", "competitive-config.json");
-export const COMPETITIVE_CACHE_FILE = path.join(ROOT, ".data", "competitive-cache.json");
+/** Vercel 仅 /tmp 可写；缓存文件放 /tmp，配置仍读部署目录 .data */
+export const COMPETITIVE_CACHE_FILE = process.env.VERCEL
+  ? path.join("/tmp", "reddit-analysis", "competitive-cache.json")
+  : path.join(ROOT, ".data", "competitive-cache.json");
 
 export interface CompetitiveCacheV1 {
   version: 1;
@@ -52,12 +55,16 @@ export async function readCompetitiveCache(): Promise<CompetitiveCacheV1 | null>
 }
 
 export async function writeCompetitiveCache(cache: CompetitiveCacheV1): Promise<void> {
-  await fs.mkdir(path.dirname(COMPETITIVE_CACHE_FILE), { recursive: true });
-  await fs.writeFile(COMPETITIVE_CACHE_FILE, JSON.stringify(cache, null, 2), "utf-8");
+  try {
+    await fs.mkdir(path.dirname(COMPETITIVE_CACHE_FILE), { recursive: true });
+    await fs.writeFile(COMPETITIVE_CACHE_FILE, JSON.stringify(cache, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[competitive] cache file write failed:", e);
+  }
   try {
     setCompetitiveCacheKv(cache);
   } catch (e) {
-    console.error("[competitive] sqlite write failed (json saved):", e);
+    console.error("[competitive] sqlite write failed:", e);
   }
 }
 

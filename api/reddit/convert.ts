@@ -1,49 +1,27 @@
 /**
- * Vercel 独立函数：仅处理 Reddit 链接转 JSON，不加载 Express / sqlite / 大依赖，避免 FUNCTION_INVOCATION_FAILED。
+ * Vercel 独立函数：仅处理 Reddit 链接转 JSON，不加载 Express / sqlite / 大依赖。
  */
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { fetchRedditJsonForConvert } from "../../lib/redditLinkConvert";
 
-function json(res: ServerResponse, status: number, body: unknown) {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify(body));
-}
+export const config = {
+  maxDuration: 60,
+};
 
-async function readJsonBody(req: IncomingMessage & { body?: unknown }): Promise<Record<string, unknown>> {
-  if (req.body != null && typeof req.body === "object") {
-    return req.body as Record<string, unknown>;
-  }
-  const raw = await new Promise<string>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (c: Buffer | string) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
-  if (!raw.trim()) return {};
-  try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    throw new Error("Invalid JSON body");
-  }
-}
-
-export default async function handler(req: IncomingMessage & { body?: unknown }, res: ServerResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
-    json(res, 405, { error: "Method not allowed" });
-    return;
+    return res.status(405).json({ error: "Method not allowed" });
   }
   try {
-    const body = await readJsonBody(req);
-    const url = typeof body.url === "string" ? body.url : "";
+    const body = req.body as Record<string, unknown> | undefined;
+    const url = typeof body?.url === "string" ? body.url : "";
     if (!url.trim()) {
-      json(res, 400, { error: "Missing reddit url" });
-      return;
+      return res.status(400).json({ error: "Missing reddit url" });
     }
     const data = await fetchRedditJsonForConvert(url.trim());
-    json(res, 200, data);
+    return res.status(200).json(data);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    json(res, 500, { error: msg || "Failed to convert reddit link" });
+    return res.status(500).json({ error: msg || "Failed to convert reddit link" });
   }
 }
