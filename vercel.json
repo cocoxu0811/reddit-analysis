@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
       "source": "/api/reddit/convert",
@@ -14,8 +15,7 @@
       "maxDuration": 60
     },
     "api/index.ts": {
-      "maxDuration": 300,
-      "includeFiles": ["lib/**", "competitive/**", "db/**"]
+      "maxDuration": 300
     }
   }
 }
