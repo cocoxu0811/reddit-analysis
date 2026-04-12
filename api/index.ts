@@ -3,7 +3,7 @@ import express from "express";
 import { Client } from "@notionhq/client";
 import path from "path";
 import fs from "fs/promises";
-import { scanSubreddit, scanMultipleSubreddits } from "../redditMonitor";
+import { scanSubreddit, scanMultipleSubreddits } from "../lib/redditMonitor";
 /** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败 */
 
 /** Vercel 打包后勿用 import.meta.url；与 server/db 一致用 cwd */
