@@ -1,13 +1,144 @@
+import "dotenv/config";
 import express from "express";
 import { Client } from "@notionhq/client";
+import path from "path";
+import fs from "fs/promises";
+import { fileURLToPath } from "url";
+import { scanSubreddit, scanMultipleSubreddits } from "../redditMonitor";
+import { readCompetitiveCache, runCompetitiveDaily } from "../competitive/runDaily";
+
+const __dirnameApi = path.dirname(fileURLToPath(import.meta.url));
+const MONITOR_CACHE_FILE = path.join(__dirnameApi, "..", ".data", "monitor-cache.json");
 
 const app = express();
+let memoryHistory: any[] = [];
 
 app.use(express.json({ limit: "50mb" }));
 
 // API routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/api/history", (_req, res) => {
+  res.json({ success: true, records: memoryHistory });
+});
+
+app.post("/api/history", (req, res) => {
+  const { record } = req.body || {};
+  if (!record?.id) {
+    return res.status(400).json({ success: false, error: "Invalid history record" });
+  }
+  memoryHistory = [record, ...memoryHistory.filter((x) => x.id !== record.id)].slice(0, 100);
+  return res.json({ success: true, records: memoryHistory });
+});
+
+app.delete("/api/history", (_req, res) => {
+  memoryHistory = [];
+  return res.json({ success: true });
+});
+
+const normalizeRedditJsonUrl = (rawUrl: string) => {
+  const url = new URL(rawUrl);
+  if (!url.hostname.includes("reddit.com")) {
+    throw new Error("Only reddit.com links are supported");
+  }
+  if (!url.pathname.endsWith(".json")) {
+    url.pathname = url.pathname.replace(/\/$/, "") + ".json";
+  }
+  if (!url.searchParams.has("limit")) {
+    url.searchParams.set("limit", "50");
+  }
+  return url.toString();
+};
+
+const flattenRedditPayload = (payload: any) => {
+  const items: any[] = [];
+  const listing = Array.isArray(payload) ? payload : [payload];
+
+  const addPost = (child: any) => {
+    const d = child?.data || {};
+    items.push({
+      dataType: "post",
+      id: d.name || d.id || "",
+      parsedId: d.id || "",
+      url: d.permalink ? `https://www.reddit.com${d.permalink}` : d.url || "",
+      title: d.title || "",
+      body: d.selftext || "",
+      username: d.author || "",
+      communityName: d.subreddit_name_prefixed || "",
+      parsedCommunityName: d.subreddit || "",
+      flair: d.link_flair_text || "",
+      upVotes: d.ups || 0,
+      numberOfComments: d.num_comments || 0,
+      over18: Boolean(d.over_18),
+      createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
+    });
+  };
+
+  const addComment = (child: any) => {
+    const d = child?.data || {};
+    items.push({
+      dataType: "comment",
+      id: d.name || d.id || "",
+      parsedId: d.id || "",
+      postId: d.link_id || "",
+      parentId: d.parent_id || "",
+      url: d.permalink ? `https://www.reddit.com${d.permalink}` : "",
+      body: d.body || "",
+      username: d.author || "",
+      communityName: d.subreddit_name_prefixed || "",
+      category: d.subreddit || "",
+      upVotes: d.ups || 0,
+      numberOfreplies: d.replies && d.replies.data?.children ? d.replies.data.children.length : 0,
+      createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
+    });
+  };
+
+  const walk = (node: any) => {
+    if (!node) return;
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (node.kind === "t3") addPost(node);
+    if (node.kind === "t1") addComment(node);
+    if (node.data?.children) walk(node.data.children);
+    if (node.data?.replies?.data?.children) walk(node.data.replies.data.children);
+  };
+
+  walk(listing);
+  return items;
+};
+
+app.post("/api/reddit/convert", async (req, res) => {
+  try {
+    const { url } = req.body || {};
+    if (!url) return res.status(400).json({ error: "Missing reddit url" });
+    const jsonUrl = normalizeRedditJsonUrl(url);
+
+    const response = await fetch(jsonUrl, {
+      headers: {
+        "User-Agent": "reddit-analysis-tool/1.0 by web-client",
+        "Accept": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({ error: `Reddit request failed: ${text.slice(0, 300)}` });
+    }
+    const payload = await response.json();
+    const items = flattenRedditPayload(payload);
+    return res.json({
+      sourceUrl: url,
+      jsonUrl,
+      convertedAt: new Date().toISOString(),
+      itemCount: items.length,
+      items,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to convert reddit link" });
+  }
 });
 
 app.post("/api/notion/export", async (req, res) => {
@@ -171,6 +302,131 @@ app.post("/api/notion/export", async (req, res) => {
   } catch (error: any) {
     console.error("Notion export error:", error);
     res.status(500).json({ error: error.message || "Failed to export to Notion" });
+  }
+});
+
+app.get("/api/monitor/cache", async (_req, res) => {
+  try {
+    const raw = await fs.readFile(MONITOR_CACHE_FILE, "utf-8");
+    res.json(JSON.parse(raw));
+  } catch {
+    res.json({ subreddit: null, subreddits: [], fetchedAt: null, posts: [] });
+  }
+});
+
+const normalizeMonitorSubreddits = (body: Record<string, unknown> | undefined): string[] => {
+  if (!body || typeof body !== "object") return [];
+  const rawList = body.subreddits ?? body.subreddit;
+  if (Array.isArray(rawList)) {
+    return rawList
+      .map((x) => String(x ?? "").replace(/[\u200b\ufeff]/g, "").trim())
+      .filter(Boolean);
+  }
+  if (typeof rawList === "string") {
+    const t = rawList.replace(/[\u200b\ufeff]/g, "").trim();
+    if (!t) return [];
+    try {
+      const parsed = JSON.parse(t);
+      if (Array.isArray(parsed)) {
+        return parsed.map((x) => String(x ?? "").trim()).filter(Boolean);
+      }
+    } catch {
+      /* fallthrough */
+    }
+    return t
+      .split(/[,，\s]+/)
+      .map((s) => s.replace(/^r\//i, "").trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const coerceMs = (v: unknown): number | null => {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+
+app.post("/api/monitor/scan", async (req, res) => {
+  try {
+    const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+    const {
+      limit = 12,
+      useGemini = false,
+      mode = "new",
+      dayStartMs: rawStart,
+      dayEndMs: rawEnd,
+    } = body;
+
+    const subsList = normalizeMonitorSubreddits(body);
+
+    const dayStartMs = coerceMs(rawStart);
+    const dayEndMs = coerceMs(rawEnd);
+    const dayRange =
+      mode === "day" && dayStartMs !== null && dayEndMs !== null
+        ? { startMs: dayStartMs, endMs: dayEndMs }
+        : null;
+
+    if (mode === "day" && !dayRange) {
+      return res.status(400).json({
+        success: false,
+        error: "day mode requires valid dayStartMs and dayEndMs (numbers)",
+      });
+    }
+
+    if (subsList.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Missing subreddit(s): request body had no subreddit names. Send JSON like {\"subreddits\":[\"askreddit\"]}.",
+      });
+    }
+
+    const opts = {
+      useGemini: Boolean(useGemini),
+      dayRange: dayRange || null,
+    };
+    let result: Record<string, unknown>;
+
+    if (subsList.length === 1 && !dayRange) {
+      const one = await scanSubreddit(subsList[0], Number(limit), { useGemini: Boolean(useGemini) });
+      result = {
+        subreddits: [one.subreddit],
+        subreddit: one.subreddit,
+        fetchedAt: one.fetchedAt,
+        posts: one.posts,
+        mode: "new",
+      };
+    } else {
+      result = await scanMultipleSubreddits(subsList, Number(limit), opts);
+    }
+
+    await fs.mkdir(path.dirname(MONITOR_CACHE_FILE), { recursive: true });
+    await fs.writeFile(MONITOR_CACHE_FILE, JSON.stringify({ success: true, mode, ...result }, null, 2), "utf-8");
+    res.json({ success: true, mode, ...result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || "Monitor scan failed" });
+  }
+});
+
+app.get("/api/competitive/cache", async (_req, res) => {
+  try {
+    const cache = await readCompetitiveCache();
+    res.json({ success: true, cache: cache || null });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || "Failed to load competitive cache" });
+  }
+});
+
+app.post("/api/competitive/sync", async (_req, res) => {
+  try {
+    const cache = await runCompetitiveDaily();
+    res.json({ success: true, cache });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || "Competitive sync failed" });
   }
 });
 

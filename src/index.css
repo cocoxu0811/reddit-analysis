@@ -1,1 +1,35 @@
 @import "tailwindcss";
+
+/*
+  Color tokens derived from color-palette skill:
+  - Reddit flow: orange scale (brand ~600), semantic accents for reports/tags
+  - Instagram flow: fuchsia scale for nav + IG actions
+*/
+
+@theme {
+  /* Orange — Reddit / 分析主路径 */
+  --color-reddit-50: #fff7ed;
+  --color-reddit-100: #ffedd5;
+  --color-reddit-200: #fed7aa;
+  --color-reddit-300: #fdba74;
+  --color-reddit-400: #fb923c;
+  --color-reddit-500: #f97316;
+  --color-reddit-600: #ea580c;
+  --color-reddit-700: #c2410c;
+  --color-reddit-800: #9a3412;
+  --color-reddit-900: #7c2d12;
+  --color-reddit-950: #431407;
+
+  /* Fuchsia — Instagram 分区与竞品/社媒 CTA */
+  --color-insta-50: #fdf4ff;
+  --color-insta-100: #fae8ff;
+  --color-insta-200: #f5d0fe;
+  --color-insta-300: #f0abfc;
+  --color-insta-400: #e879f9;
+  --color-insta-500: #d946ef;
+  --color-insta-600: #c026d3;
+  --color-insta-700: #a21caf;
+  --color-insta-800: #86198f;
+  --color-insta-900: #701a75;
+  --color-insta-950: #4a044e;
+}

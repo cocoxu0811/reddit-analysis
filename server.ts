@@ -1,20 +1,397 @@
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { Client } from "@notionhq/client";
 import path from "path";
-import { fileURLToPath } from "url";
+import fs from "fs/promises";
+import cron from "node-cron";
+import { scanSubreddit, scanMultipleSubreddits } from "./redditMonitor";
+import { readCompetitiveCache, runCompetitiveDaily } from "./competitive/runDaily";
+import { getDb, getMonitorCacheKv, replaceHistoryInDb, loadHistoryFromDb, setMonitorCacheKv } from "./db/sqlite";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** 与 db/sqlite、competitive/runDaily 一致：请在项目根目录启动进程 */
+const ROOT = process.cwd();
 
 async function startServer() {
+  try {
+    getDb();
+  } catch (e) {
+    console.error("[sqlite] init failed — history/monitor/competitive will use JSON only:", e);
+  }
+
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+  const HISTORY_FILE = path.join(ROOT, ".data", "history.json");
+  const MONITOR_CACHE_FILE = path.join(ROOT, ".data", "monitor-cache.json");
 
   app.use(express.json({ limit: "50mb" }));
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  const ensureHistoryFile = async () => {
+    await fs.mkdir(path.dirname(HISTORY_FILE), { recursive: true });
+    try {
+      await fs.access(HISTORY_FILE);
+    } catch {
+      await fs.writeFile(HISTORY_FILE, "[]", "utf-8");
+    }
+  };
+
+  const readHistory = async () => {
+    await ensureHistoryFile();
+    try {
+      let rows = loadHistoryFromDb();
+      if (rows.length === 0) {
+        const raw = await fs.readFile(HISTORY_FILE, "utf-8");
+        const parsed = JSON.parse(raw);
+        const arr = Array.isArray(parsed) ? parsed : [];
+        if (arr.length > 0) {
+          replaceHistoryInDb(
+            arr.map((x: any) => ({
+              id: x.id,
+              createdAt: x.createdAt,
+              language: x.language,
+              sourceType: x.sourceType,
+              sourceLabel: x.sourceLabel,
+              inputText: x.inputText ?? "",
+              report: x.report,
+            }))
+          );
+          rows = loadHistoryFromDb();
+        }
+      }
+      return rows.map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt,
+        language: r.language,
+        sourceType: r.sourceType,
+        sourceLabel: r.sourceLabel,
+        inputText: r.inputText,
+        report: r.report,
+      }));
+    } catch (e) {
+      console.warn("[history] sqlite read failed, falling back to JSON:", e);
+      const raw = await fs.readFile(HISTORY_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  };
+
+  const writeHistory = async (records: any[]) => {
+    await ensureHistoryFile();
+    await fs.writeFile(HISTORY_FILE, JSON.stringify(records, null, 2), "utf-8");
+    try {
+      replaceHistoryInDb(
+        records.map((x: any) => ({
+          id: x.id,
+          createdAt: x.createdAt,
+          language: x.language,
+          sourceType: x.sourceType,
+          sourceLabel: x.sourceLabel,
+          inputText: x.inputText ?? "",
+          report: x.report,
+        }))
+      );
+    } catch (e) {
+      console.error("[history] sqlite write failed (json saved):", e);
+    }
+  };
+
+  app.get("/api/history", async (_req, res) => {
+    try {
+      const records = await readHistory();
+      res.json({ success: true, records });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || "Failed to load history" });
+    }
+  });
+
+  app.post("/api/history", async (req, res) => {
+    try {
+      const { record } = req.body || {};
+      if (!record?.id) {
+        return res.status(400).json({ success: false, error: "Invalid history record" });
+      }
+      const records = await readHistory();
+      const deduped = records.filter((x: any) => x.id !== record.id);
+      const next = [record, ...deduped].slice(0, 100);
+      await writeHistory(next);
+      res.json({ success: true, records: next });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || "Failed to save history" });
+    }
+  });
+
+  app.delete("/api/history", async (_req, res) => {
+    try {
+      await writeHistory([]);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || "Failed to clear history" });
+    }
+  });
+
+  app.get("/api/monitor/cache", async (_req, res) => {
+    try {
+      await fs.mkdir(path.dirname(MONITOR_CACHE_FILE), { recursive: true });
+      try {
+        const fromDb = getMonitorCacheKv();
+        if (fromDb && typeof fromDb === "object") {
+          return res.json(fromDb);
+        }
+      } catch {
+        /* fall through to file */
+      }
+      const raw = await fs.readFile(MONITOR_CACHE_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      try {
+        setMonitorCacheKv(parsed);
+      } catch {
+        /* ignore */
+      }
+      res.json(parsed);
+    } catch {
+      res.json({ subreddit: null, subreddits: [], fetchedAt: null, posts: [] });
+    }
+  });
+
+  /** 兼容 subreddits 数组、单字段 subreddit、逗号分隔字符串；避免 body 解析差异导致空数组 */
+  const normalizeMonitorSubreddits = (body: Record<string, unknown> | undefined): string[] => {
+    if (!body || typeof body !== "object") return [];
+    const rawList = body.subreddits ?? body.subreddit;
+    if (Array.isArray(rawList)) {
+      return rawList
+        .map((x) => String(x ?? "").replace(/[\u200b\ufeff]/g, "").trim())
+        .filter(Boolean);
+    }
+    if (typeof rawList === "string") {
+      const t = rawList.replace(/[\u200b\ufeff]/g, "").trim();
+      if (!t) return [];
+      try {
+        const parsed = JSON.parse(t);
+        if (Array.isArray(parsed)) {
+          return parsed.map((x) => String(x ?? "").trim()).filter(Boolean);
+        }
+      } catch {
+        /* 单字符串或逗号分隔 */
+      }
+      return t
+        .split(/[,，\s]+/)
+        .map((s) => s.replace(/^r\//i, "").trim())
+        .filter(Boolean);
+    }
+    return [];
+  };
+
+  const coerceMs = (v: unknown): number | null => {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "") {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  };
+
+  app.get("/api/competitive/cache", async (_req, res) => {
+    try {
+      const cache = await readCompetitiveCache();
+      res.json({ success: true, cache: cache || null });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || "Failed to load competitive cache" });
+    }
+  });
+
+  app.post("/api/competitive/sync", async (req, res) => {
+    /** Apify Actor 可能跑数分钟，避免默认 socket 过早断开 */
+    req.socket.setTimeout(35 * 60 * 1000);
+    res.setTimeout(35 * 60 * 1000);
+    try {
+      const cache = await runCompetitiveDaily();
+      const safe = JSON.parse(
+        JSON.stringify({ success: true, cache }, (_k, v) => (typeof v === "bigint" ? String(v) : v))
+      );
+      res.json(safe);
+    } catch (error: any) {
+      console.error("[competitive] sync error:", error);
+      res.status(500).json({ success: false, error: error.message || "Competitive sync failed" });
+    }
+  });
+
+  app.post("/api/monitor/scan", async (req, res) => {
+    try {
+      const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+      const {
+        limit = 12,
+        useGemini = false,
+        mode = "new",
+        dayStartMs: rawStart,
+        dayEndMs: rawEnd,
+      } = body;
+
+      const subsList = normalizeMonitorSubreddits(body);
+
+      const dayStartMs = coerceMs(rawStart);
+      const dayEndMs = coerceMs(rawEnd);
+      const dayRange =
+        mode === "day" && dayStartMs !== null && dayEndMs !== null
+          ? { startMs: dayStartMs, endMs: dayEndMs }
+          : null;
+
+      if (mode === "day" && !dayRange) {
+        return res.status(400).json({
+          success: false,
+          error: "day mode requires valid dayStartMs and dayEndMs (numbers)",
+        });
+      }
+
+      if (subsList.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Missing subreddit(s): request body had no subreddit names. Send JSON like {\"subreddits\":[\"askreddit\"]}.",
+        });
+      }
+
+      const opts = {
+        useGemini: Boolean(useGemini),
+        dayRange: dayRange || null,
+      };
+      let result: Record<string, unknown>;
+
+      if (subsList.length === 1 && !dayRange) {
+        const one = await scanSubreddit(subsList[0], Number(limit), { useGemini: Boolean(useGemini) });
+        result = {
+          subreddits: [one.subreddit],
+          subreddit: one.subreddit,
+          fetchedAt: one.fetchedAt,
+          posts: one.posts,
+          mode: "new",
+        };
+      } else {
+        result = await scanMultipleSubreddits(subsList, Number(limit), opts);
+      }
+
+      await fs.mkdir(path.dirname(MONITOR_CACHE_FILE), { recursive: true });
+      const monitorPayload = { success: true, mode, ...result };
+      await fs.writeFile(MONITOR_CACHE_FILE, JSON.stringify(monitorPayload, null, 2), "utf-8");
+      try {
+        setMonitorCacheKv(monitorPayload);
+      } catch (e) {
+        console.error("[monitor] sqlite write failed (json saved):", e);
+      }
+      res.json({ success: true, mode, ...result });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || "Monitor scan failed" });
+    }
+  });
+
+  const normalizeRedditJsonUrl = (rawUrl: string) => {
+    const url = new URL(rawUrl);
+    if (!url.hostname.includes("reddit.com")) {
+      throw new Error("Only reddit.com links are supported");
+    }
+    url.searchParams.delete("utm_source");
+    url.searchParams.delete("utm_medium");
+    url.searchParams.delete("utm_campaign");
+    if (!url.pathname.endsWith(".json")) {
+      url.pathname = url.pathname.replace(/\/$/, "") + ".json";
+    }
+    if (!url.searchParams.has("limit")) {
+      url.searchParams.set("limit", "50");
+    }
+    return url.toString();
+  };
+
+  const flattenRedditPayload = (payload: any) => {
+    const items: any[] = [];
+    const listing = Array.isArray(payload) ? payload : [payload];
+
+    const addPost = (child: any) => {
+      const d = child?.data || {};
+      items.push({
+        dataType: "post",
+        id: d.name || d.id || "",
+        parsedId: d.id || "",
+        url: d.url ? `https://www.reddit.com${d.permalink || ""}` : d.url_overridden_by_dest || "",
+        title: d.title || "",
+        body: d.selftext || "",
+        username: d.author || "",
+        communityName: d.subreddit_name_prefixed || "",
+        parsedCommunityName: d.subreddit || "",
+        flair: d.link_flair_text || "",
+        upVotes: d.ups || 0,
+        numberOfComments: d.num_comments || 0,
+        over18: Boolean(d.over_18),
+        createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
+      });
+    };
+
+    const addComment = (child: any) => {
+      const d = child?.data || {};
+      items.push({
+        dataType: "comment",
+        id: d.name || d.id || "",
+        parsedId: d.id || "",
+        postId: d.link_id || "",
+        parentId: d.parent_id || "",
+        url: d.permalink ? `https://www.reddit.com${d.permalink}` : "",
+        body: d.body || "",
+        username: d.author || "",
+        communityName: d.subreddit_name_prefixed || "",
+        category: d.subreddit || "",
+        upVotes: d.ups || 0,
+        numberOfreplies: d.replies && d.replies.data?.children ? d.replies.data.children.length : 0,
+        createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
+      });
+    };
+
+    const walk = (node: any) => {
+      if (!node) return;
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (node.kind === "t3") addPost(node);
+      if (node.kind === "t1") addComment(node);
+      if (node.data?.children) walk(node.data.children);
+      if (node.data?.replies?.data?.children) walk(node.data.replies.data.children);
+    };
+
+    walk(listing);
+    return items;
+  };
+
+  app.post("/api/reddit/convert", async (req, res) => {
+    try {
+      const { url } = req.body || {};
+      if (!url) return res.status(400).json({ error: "Missing reddit url" });
+
+      const jsonUrl = normalizeRedditJsonUrl(url);
+      const response = await fetch(jsonUrl, {
+        headers: {
+          "User-Agent": "reddit-analysis-tool/1.0 by web-client",
+          "Accept": "application/json",
+        },
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(response.status).json({ error: `Reddit request failed: ${text.slice(0, 300)}` });
+      }
+      const payload = await response.json();
+      const items = flattenRedditPayload(payload);
+      return res.json({
+        sourceUrl: url,
+        jsonUrl,
+        convertedAt: new Date().toISOString(),
+        itemCount: items.length,
+        items,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to convert reddit link" });
+    }
   });
 
   app.post("/api/notion/export", async (req, res) => {
@@ -189,7 +566,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, "dist");
+    const distPath = path.join(ROOT, "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
@@ -198,6 +575,20 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    const cronExpr = process.env.COMPETITIVE_CRON || "0 6 * * *";
+    const tz = process.env.COMPETITIVE_TZ || "Asia/Shanghai";
+    if (process.env.COMPETITIVE_DISABLE_CRON === "true") {
+      console.log("[competitive] daily cron disabled (COMPETITIVE_DISABLE_CRON=true)");
+    } else {
+      cron.schedule(
+        cronExpr,
+        () => {
+          runCompetitiveDaily().catch((err) => console.error("[competitive] daily job failed:", err));
+        },
+        { timezone: tz }
+      );
+      console.log(`[competitive] daily cron: ${cronExpr} (${tz}) — Instagram apify/instagram-scraper only`);
+    }
   });
 }
 
