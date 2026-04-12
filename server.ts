@@ -8,6 +8,7 @@ import cron from "node-cron";
 import { scanSubreddit, scanMultipleSubreddits } from "./redditMonitor";
 import { readCompetitiveCache, runCompetitiveDaily } from "./competitive/runDaily";
 import { getDb, getMonitorCacheKv, replaceHistoryInDb, loadHistoryFromDb, setMonitorCacheKv } from "./db/sqlite";
+import { fetchRedditJsonForConvert } from "./lib/redditLinkConvert";
 
 /** 与 db/sqlite、competitive/runDaily 一致：请在项目根目录启动进程 */
 const ROOT = process.cwd();
@@ -288,107 +289,12 @@ async function startServer() {
     }
   });
 
-  const normalizeRedditJsonUrl = (rawUrl: string) => {
-    const url = new URL(rawUrl);
-    if (!url.hostname.includes("reddit.com")) {
-      throw new Error("Only reddit.com links are supported");
-    }
-    url.searchParams.delete("utm_source");
-    url.searchParams.delete("utm_medium");
-    url.searchParams.delete("utm_campaign");
-    if (!url.pathname.endsWith(".json")) {
-      url.pathname = url.pathname.replace(/\/$/, "") + ".json";
-    }
-    if (!url.searchParams.has("limit")) {
-      url.searchParams.set("limit", "50");
-    }
-    return url.toString();
-  };
-
-  const flattenRedditPayload = (payload: any) => {
-    const items: any[] = [];
-    const listing = Array.isArray(payload) ? payload : [payload];
-
-    const addPost = (child: any) => {
-      const d = child?.data || {};
-      items.push({
-        dataType: "post",
-        id: d.name || d.id || "",
-        parsedId: d.id || "",
-        url: d.url ? `https://www.reddit.com${d.permalink || ""}` : d.url_overridden_by_dest || "",
-        title: d.title || "",
-        body: d.selftext || "",
-        username: d.author || "",
-        communityName: d.subreddit_name_prefixed || "",
-        parsedCommunityName: d.subreddit || "",
-        flair: d.link_flair_text || "",
-        upVotes: d.ups || 0,
-        numberOfComments: d.num_comments || 0,
-        over18: Boolean(d.over_18),
-        createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
-      });
-    };
-
-    const addComment = (child: any) => {
-      const d = child?.data || {};
-      items.push({
-        dataType: "comment",
-        id: d.name || d.id || "",
-        parsedId: d.id || "",
-        postId: d.link_id || "",
-        parentId: d.parent_id || "",
-        url: d.permalink ? `https://www.reddit.com${d.permalink}` : "",
-        body: d.body || "",
-        username: d.author || "",
-        communityName: d.subreddit_name_prefixed || "",
-        category: d.subreddit || "",
-        upVotes: d.ups || 0,
-        numberOfreplies: d.replies && d.replies.data?.children ? d.replies.data.children.length : 0,
-        createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
-      });
-    };
-
-    const walk = (node: any) => {
-      if (!node) return;
-      if (Array.isArray(node)) {
-        node.forEach(walk);
-        return;
-      }
-      if (node.kind === "t3") addPost(node);
-      if (node.kind === "t1") addComment(node);
-      if (node.data?.children) walk(node.data.children);
-      if (node.data?.replies?.data?.children) walk(node.data.replies.data.children);
-    };
-
-    walk(listing);
-    return items;
-  };
-
   app.post("/api/reddit/convert", async (req, res) => {
     try {
       const { url } = req.body || {};
       if (!url) return res.status(400).json({ error: "Missing reddit url" });
-
-      const jsonUrl = normalizeRedditJsonUrl(url);
-      const response = await fetch(jsonUrl, {
-        headers: {
-          "User-Agent": "reddit-analysis-tool/1.0 by web-client",
-          "Accept": "application/json",
-        },
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        return res.status(response.status).json({ error: `Reddit request failed: ${text.slice(0, 300)}` });
-      }
-      const payload = await response.json();
-      const items = flattenRedditPayload(payload);
-      return res.json({
-        sourceUrl: url,
-        jsonUrl,
-        convertedAt: new Date().toISOString(),
-        itemCount: items.length,
-        items,
-      });
+      const data = await fetchRedditJsonForConvert(String(url).trim());
+      return res.json(data);
     } catch (error: any) {
       return res.status(500).json({ error: error.message || "Failed to convert reddit link" });
     }

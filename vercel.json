@@ -1,8 +1,20 @@
 {
   "rewrites": [
     {
+      "source": "/api/reddit/convert",
+      "destination": "/api/reddit/convert"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.ts"
     }
-  ]
+  ],
+  "functions": {
+    "api/reddit/convert.ts": {
+      "maxDuration": 60
+    },
+    "api/index.ts": {
+      "maxDuration": 300
+    }
+  }
 }

@@ -3,12 +3,11 @@ import express from "express";
 import { Client } from "@notionhq/client";
 import path from "path";
 import fs from "fs/promises";
-import { fileURLToPath } from "url";
 import { scanSubreddit, scanMultipleSubreddits } from "../redditMonitor";
-/** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败，连 reddit/convert 都会返回 HTML 错误页 */
+/** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败 */
 
-const __dirnameApi = path.dirname(fileURLToPath(import.meta.url));
-const MONITOR_CACHE_FILE = path.join(__dirnameApi, "..", ".data", "monitor-cache.json");
+/** Vercel 打包后勿用 import.meta.url；与 server/db 一致用 cwd */
+const MONITOR_CACHE_FILE = path.join(process.cwd(), ".data", "monitor-cache.json");
 
 const app = express();
 let memoryHistory: any[] = [];
@@ -38,108 +37,7 @@ app.delete("/api/history", (_req, res) => {
   return res.json({ success: true });
 });
 
-const normalizeRedditJsonUrl = (rawUrl: string) => {
-  const url = new URL(rawUrl);
-  if (!url.hostname.includes("reddit.com")) {
-    throw new Error("Only reddit.com links are supported");
-  }
-  if (!url.pathname.endsWith(".json")) {
-    url.pathname = url.pathname.replace(/\/$/, "") + ".json";
-  }
-  if (!url.searchParams.has("limit")) {
-    url.searchParams.set("limit", "50");
-  }
-  return url.toString();
-};
-
-const flattenRedditPayload = (payload: any) => {
-  const items: any[] = [];
-  const listing = Array.isArray(payload) ? payload : [payload];
-
-  const addPost = (child: any) => {
-    const d = child?.data || {};
-    items.push({
-      dataType: "post",
-      id: d.name || d.id || "",
-      parsedId: d.id || "",
-      url: d.permalink ? `https://www.reddit.com${d.permalink}` : d.url || "",
-      title: d.title || "",
-      body: d.selftext || "",
-      username: d.author || "",
-      communityName: d.subreddit_name_prefixed || "",
-      parsedCommunityName: d.subreddit || "",
-      flair: d.link_flair_text || "",
-      upVotes: d.ups || 0,
-      numberOfComments: d.num_comments || 0,
-      over18: Boolean(d.over_18),
-      createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
-    });
-  };
-
-  const addComment = (child: any) => {
-    const d = child?.data || {};
-    items.push({
-      dataType: "comment",
-      id: d.name || d.id || "",
-      parsedId: d.id || "",
-      postId: d.link_id || "",
-      parentId: d.parent_id || "",
-      url: d.permalink ? `https://www.reddit.com${d.permalink}` : "",
-      body: d.body || "",
-      username: d.author || "",
-      communityName: d.subreddit_name_prefixed || "",
-      category: d.subreddit || "",
-      upVotes: d.ups || 0,
-      numberOfreplies: d.replies && d.replies.data?.children ? d.replies.data.children.length : 0,
-      createdAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : "",
-    });
-  };
-
-  const walk = (node: any) => {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      node.forEach(walk);
-      return;
-    }
-    if (node.kind === "t3") addPost(node);
-    if (node.kind === "t1") addComment(node);
-    if (node.data?.children) walk(node.data.children);
-    if (node.data?.replies?.data?.children) walk(node.data.replies.data.children);
-  };
-
-  walk(listing);
-  return items;
-};
-
-app.post("/api/reddit/convert", async (req, res) => {
-  try {
-    const { url } = req.body || {};
-    if (!url) return res.status(400).json({ error: "Missing reddit url" });
-    const jsonUrl = normalizeRedditJsonUrl(url);
-
-    const response = await fetch(jsonUrl, {
-      headers: {
-        "User-Agent": "reddit-analysis-tool/1.0 by web-client",
-        "Accept": "application/json",
-      },
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      return res.status(response.status).json({ error: `Reddit request failed: ${text.slice(0, 300)}` });
-    }
-    const payload = await response.json();
-    const items = flattenRedditPayload(payload);
-    return res.json({
-      sourceUrl: url,
-      jsonUrl,
-      convertedAt: new Date().toISOString(),
-      itemCount: items.length,
-      items,
-    });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message || "Failed to convert reddit link" });
-  }
-});
+/** Reddit 链接转换见独立函数 api/reddit/convert.ts（避免经 Express 整包加载失败） */
 
 app.post("/api/notion/export", async (req, res) => {
   try {
