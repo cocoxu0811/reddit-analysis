@@ -1,12 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
-import { getCompetitiveCacheKv, setCompetitiveCacheKv } from "../db/sqlite";
+import { getCompetitiveCacheKv, setCompetitiveCacheKv } from "../db/sqlite.js";
 import {
   pollInstagramActorRun,
   resolveInstagramParams,
   runInstagramScraper,
   startInstagramActorRun,
-} from "./instagramApify";
+} from "./instagramApify.js";
 
 const ROOT = process.cwd();
 export const COMPETITIVE_CONFIG_FILE = path.join(ROOT, ".data", "competitive-config.json");

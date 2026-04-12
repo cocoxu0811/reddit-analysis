@@ -11,9 +11,9 @@ import {
   competitiveSyncStart,
   readCompetitiveCache,
   runCompetitiveDaily,
-} from "./competitive/runDaily";
-import { getDb, getMonitorCacheKv, replaceHistoryInDb, loadHistoryFromDb, setMonitorCacheKv } from "./db/sqlite";
-import { fetchRedditJsonForConvert } from "./lib/redditLinkConvert";
+} from "./competitive/runDaily.js";
+import { getDb, getMonitorCacheKv, replaceHistoryInDb, loadHistoryFromDb, setMonitorCacheKv } from "./db/sqlite.js";
+import { fetchRedditJsonForConvert } from "./lib/redditLinkConvert.js";
 
 /** 与 db/sqlite、competitive/runDaily 一致：请在项目根目录启动进程 */
 const ROOT = process.cwd();

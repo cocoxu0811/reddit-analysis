@@ -4,7 +4,7 @@ import {
   DEFAULT_INSTAGRAM_RESULTS_LIMIT,
   instagramProfileUrl,
   type CompetitiveFileConfig,
-} from "./config";
+} from "./config.js";
 
 const ACTOR_ID = "apify/instagram-scraper";
 

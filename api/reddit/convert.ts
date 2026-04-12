@@ -2,7 +2,7 @@
  * Vercel 独立函数：仅处理 Reddit 链接转 JSON，不加载 Express / sqlite / 大依赖。
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { fetchRedditJsonForConvert } from "../../lib/redditLinkConvert";
+import { fetchRedditJsonForConvert } from "../../lib/redditLinkConvert.js";
 
 export const config = {
   maxDuration: 60,
