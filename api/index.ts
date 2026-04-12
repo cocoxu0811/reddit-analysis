@@ -320,13 +320,31 @@ app.get("/api/competitive/cache", async (_req, res) => {
   }
 });
 
+/** Instagram：先 POST 投递 Apify，再 GET ?runId= 轮询（避免 Vercel 单请求内长时间阻塞导致 HTML 500） */
 app.post("/api/competitive/sync", async (_req, res) => {
   try {
-    const { runCompetitiveDaily } = await import("../competitive/runDaily");
-    const cache = await runCompetitiveDaily();
-    res.json({ success: true, cache });
+    const { competitiveSyncStart } = await import("../competitive/runDaily");
+    const { runId, defaultDatasetId } = await competitiveSyncStart();
+    res.json({ success: true, phase: "started", runId, defaultDatasetId });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message || "Competitive sync failed" });
+    res.status(500).json({ success: false, error: error.message || "Competitive sync start failed" });
+  }
+});
+
+app.get("/api/competitive/sync", async (req, res) => {
+  try {
+    const runId = typeof req.query.runId === "string" ? req.query.runId.trim() : "";
+    if (!runId) {
+      return res.status(400).json({ success: false, error: "Missing runId query parameter" });
+    }
+    const { competitiveSyncPoll } = await import("../competitive/runDaily");
+    const result = await competitiveSyncPoll(runId);
+    if (result.phase === "running") {
+      return res.json({ success: true, phase: "running", status: result.status });
+    }
+    return res.json({ success: true, phase: "done", cache: result.cache });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || "Competitive sync poll failed" });
   }
 });
 

@@ -151,6 +151,100 @@ export function groupPostsByUsername(items: InstagramPostLite[]): Record<string,
   return out;
 }
 
+function filterPostsByPilotHandles(
+  postsByUsername: Record<string, InstagramPostLite[]>,
+  handles: string[]
+): Record<string, InstagramPostLite[]> {
+  const allowed = new Set(handles.map((h) => h.replace(/^@/, "").trim().toLowerCase()));
+  return Object.fromEntries(Object.entries(postsByUsername).filter(([k]) => allowed.has(k.toLowerCase())));
+}
+
+/** 将 Dataset 行转为按试点账号分组的帖子（供 call / 轮询共用） */
+export function buildPostsByUsernameFromDatasetItems(
+  rawItems: unknown[],
+  handles: string[]
+): Record<string, InstagramPostLite[]> {
+  const items: InstagramPostLite[] = [];
+  for (const row of rawItems) {
+    if (!row || typeof row !== "object") continue;
+    const n = normalizeIgDatasetItem(row as Record<string, unknown>);
+    if (n) items.push(n);
+  }
+  const grouped = groupPostsByUsername(items);
+  return filterPostsByPilotHandles(grouped, handles);
+}
+
+function buildInstagramActorInput(handles: string[], resultsLimit: number): Record<string, unknown> {
+  const directUrls = handles.map((h) => instagramProfileUrl(h));
+  return {
+    directUrls,
+    resultsType: "posts",
+    resultsLimit,
+    addParentData: true,
+  };
+}
+
+/**
+ * 仅启动 Actor（不等待结束）。用于 Vercel 等短超时环境：后续用 pollInstagramActorRun 轮询。
+ */
+export async function startInstagramActorRun(
+  token: string,
+  handles: string[],
+  options: { resultsLimit?: number } = {}
+): Promise<{ runId: string; defaultDatasetId: string }> {
+  const resultsLimit = options.resultsLimit ?? DEFAULT_INSTAGRAM_RESULTS_LIMIT;
+  const input = buildInstagramActorInput(handles, resultsLimit);
+  const client = new ApifyClient({ token });
+  const run = await client.actor(ACTOR_ID).start(input);
+  return { runId: run.id, defaultDatasetId: run.defaultDatasetId };
+}
+
+const TERMINAL_RUN_STATUSES = new Set(["SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"]);
+
+export type PollInstagramOutcome =
+  | { kind: "running"; status: string }
+  | { kind: "failed"; status: string; message: string }
+  | {
+      kind: "succeeded";
+      runId: string;
+      defaultDatasetId: string;
+      postsByUsername: Record<string, InstagramPostLite[]>;
+    };
+
+/** 查询 Run 状态；若已成功则拉取 Dataset（单次请求内完成，需保持在平台超时以内） */
+export async function pollInstagramActorRun(token: string, runId: string, handles: string[]): Promise<PollInstagramOutcome> {
+  const client = new ApifyClient({ token });
+  const run = await client.run(runId).get();
+  const status = String(run.status);
+
+  if (!TERMINAL_RUN_STATUSES.has(status)) {
+    return { kind: "running", status };
+  }
+  if (status !== "SUCCEEDED") {
+    return {
+      kind: "failed",
+      status,
+      message: (typeof run.statusMessage === "string" && run.statusMessage) || status,
+    };
+  }
+
+  const defaultDatasetId = run.defaultDatasetId;
+  if (!defaultDatasetId) {
+    return { kind: "failed", status: "FAILED", message: "Missing defaultDatasetId" };
+  }
+
+  const { items: rawItems } = await client.dataset(defaultDatasetId).listItems({ limit: 10000 });
+  const postsByUsername = buildPostsByUsernameFromDatasetItems(rawItems as unknown[], handles);
+
+  return {
+    kind: "succeeded",
+    runId: run.id,
+    defaultDatasetId,
+    postsByUsername,
+  };
+}
+
+/** 本地 / 长超时：一次调用内等待 Actor 跑完（npm run dev / cron） */
 export async function runInstagramScraper(
   token: string,
   handles: string[],
@@ -161,39 +255,17 @@ export async function runInstagramScraper(
   postsByUsername: Record<string, InstagramPostLite[]>;
 }> {
   const resultsLimit = options.resultsLimit ?? DEFAULT_INSTAGRAM_RESULTS_LIMIT;
-  const directUrls = handles.map((h) => instagramProfileUrl(h));
-
-  const input: Record<string, unknown> = {
-    directUrls,
-    resultsType: "posts",
-    resultsLimit,
-    addParentData: true,
-  };
-
+  const input = buildInstagramActorInput(handles, resultsLimit);
   const client = new ApifyClient({ token });
   const run = await client.actor(ACTOR_ID).call(input);
-
-  const runId = run.id;
-  const defaultDatasetId = run.defaultDatasetId;
-  const { items: rawItems } = await client.dataset(defaultDatasetId).listItems({ limit: 10000 });
-
-  const items: InstagramPostLite[] = [];
-  for (const row of rawItems) {
-    if (!row || typeof row !== "object") continue;
-    const n = normalizeIgDatasetItem(row as Record<string, unknown>);
-    if (n) items.push(n);
-  }
-
-  let postsByUsername = groupPostsByUsername(items);
-  /** 只保留本次请求的试点账号，去掉协作帖/转发里出现的「真实发帖人」分组 */
-  const allowed = new Set(handles.map((h) => h.replace(/^@/, "").trim().toLowerCase()));
-  postsByUsername = Object.fromEntries(
-    Object.entries(postsByUsername).filter(([k]) => allowed.has(k.toLowerCase()))
-  );
+  const postsByUsername = await (async () => {
+    const { items: rawItems } = await client.dataset(run.defaultDatasetId).listItems({ limit: 10000 });
+    return buildPostsByUsernameFromDatasetItems(rawItems as unknown[], handles);
+  })();
 
   return {
-    runId,
-    defaultDatasetId,
+    runId: run.id,
+    defaultDatasetId: run.defaultDatasetId,
     postsByUsername,
   };
 }

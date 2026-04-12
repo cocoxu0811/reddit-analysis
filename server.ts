@@ -6,7 +6,12 @@ import path from "path";
 import fs from "fs/promises";
 import cron from "node-cron";
 import { scanSubreddit, scanMultipleSubreddits } from "./redditMonitor";
-import { readCompetitiveCache, runCompetitiveDaily } from "./competitive/runDaily";
+import {
+  competitiveSyncPoll,
+  competitiveSyncStart,
+  readCompetitiveCache,
+  runCompetitiveDaily,
+} from "./competitive/runDaily";
 import { getDb, getMonitorCacheKv, replaceHistoryInDb, loadHistoryFromDb, setMonitorCacheKv } from "./db/sqlite";
 import { fetchRedditJsonForConvert } from "./lib/redditLinkConvert";
 
@@ -205,19 +210,36 @@ async function startServer() {
     }
   });
 
-  app.post("/api/competitive/sync", async (req, res) => {
-    /** Apify Actor 可能跑数分钟，避免默认 socket 过早断开 */
-    req.socket.setTimeout(35 * 60 * 1000);
-    res.setTimeout(35 * 60 * 1000);
+  /** 与 Vercel 一致：POST 只投递 Actor，GET ?runId= 轮询（本地也可用，避免单连接占满数分钟） */
+  app.post("/api/competitive/sync", async (_req, res) => {
     try {
-      const cache = await runCompetitiveDaily();
+      const { runId, defaultDatasetId } = await competitiveSyncStart();
+      res.json({ success: true, phase: "started", runId, defaultDatasetId });
+    } catch (error: any) {
+      console.error("[competitive] sync start error:", error);
+      res.status(500).json({ success: false, error: error.message || "Competitive sync start failed" });
+    }
+  });
+
+  app.get("/api/competitive/sync", async (req, res) => {
+    try {
+      const runId = typeof req.query.runId === "string" ? req.query.runId.trim() : "";
+      if (!runId) {
+        return res.status(400).json({ success: false, error: "Missing runId query parameter" });
+      }
+      const result = await competitiveSyncPoll(runId);
+      if (result.phase === "running") {
+        return res.json({ success: true, phase: "running", status: result.status });
+      }
       const safe = JSON.parse(
-        JSON.stringify({ success: true, cache }, (_k, v) => (typeof v === "bigint" ? String(v) : v))
+        JSON.stringify({ success: true, phase: "done", cache: result.cache }, (_k, v) =>
+          typeof v === "bigint" ? String(v) : v
+        )
       );
       res.json(safe);
     } catch (error: any) {
-      console.error("[competitive] sync error:", error);
-      res.status(500).json({ success: false, error: error.message || "Competitive sync failed" });
+      console.error("[competitive] sync poll error:", error);
+      res.status(500).json({ success: false, error: error.message || "Competitive sync poll failed" });
     }
   });
 

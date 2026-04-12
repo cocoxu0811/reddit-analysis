@@ -1384,8 +1384,7 @@ export default function App() {
 
   const handleCompetitiveSync = async () => {
     setCompetitiveSyncing(true);
-    try {
-      const res = await fetch('/api/competitive/sync', { method: 'POST' });
+    const parseJsonOrThrow = async (res: Response, label: string) => {
       const text = await res.text();
       if (!text.trim()) {
         throw new Error(
@@ -1394,24 +1393,64 @@ export default function App() {
             : 'Empty response: open the app at http://localhost:3000 (npm run dev), not a Vite-only dev port.'
         );
       }
-      let data: { success?: boolean; cache?: Record<string, unknown>; error?: string };
       try {
-        data = JSON.parse(text) as typeof data;
+        return JSON.parse(text) as Record<string, unknown>;
       } catch {
         throw new Error(
           language === 'zh'
-            ? `服务器返回非 JSON（HTTP ${res.status}）。请确认用 npm run dev 打开 http://localhost:3000；若 Apify 耗时较长请耐心等待。`
-            : `Non-JSON response (HTTP ${res.status}). Use http://localhost:3000; Apify may take several minutes.`
+            ? `${label}：服务器返回非 JSON（HTTP ${res.status}）。若部署在 Vercel，请查看 Functions 日志；Apify 仍在后台运行时请等待下方轮询。`
+            : `${label}: Non-JSON (HTTP ${res.status}). Check Vercel function logs.`
         );
       }
-      if (data.success && data.cache) {
-        setCompetitiveCache(data.cache as Record<string, unknown>);
-        toast.success(language === 'zh' ? '竞品数据已更新' : 'Competitive cache updated');
-      } else {
-        throw new Error(data.error || 'Sync failed');
+    };
+
+    try {
+      const startRes = await fetch('/api/competitive/sync', { method: 'POST', cache: 'no-store' });
+      const startData = await parseJsonOrThrow(startRes, language === 'zh' ? '启动同步' : 'Start sync');
+      if (!startRes.ok || !startData.success) {
+        throw new Error(String(startData.error || 'Sync start failed'));
       }
-    } catch (error: any) {
-      toast.error(language === 'zh' ? `同步失败: ${error.message}` : `Sync failed: ${error.message}`);
+      const runId = typeof startData.runId === 'string' ? startData.runId : '';
+      if (!runId) {
+        throw new Error(language === 'zh' ? '未返回 runId' : 'Missing runId');
+      }
+
+      /** Apify 在云端执行数分钟；后端用短请求轮询，避免单 HTTP 超过 Vercel 限时 */
+      const maxPolls = 200;
+      const intervalMs = 3000;
+      for (let i = 0; i < maxPolls; i++) {
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, intervalMs));
+        }
+        const pollRes = await fetch(`/api/competitive/sync?runId=${encodeURIComponent(runId)}`, {
+          cache: 'no-store',
+        });
+        const pollData = await parseJsonOrThrow(pollRes, language === 'zh' ? '轮询状态' : 'Poll');
+        if (!pollRes.ok || !pollData.success) {
+          throw new Error(String(pollData.error || 'Poll failed'));
+        }
+        if (pollData.phase === 'done' && pollData.cache) {
+          setCompetitiveCache(pollData.cache as Record<string, unknown>);
+          const ig = pollData.cache as { instagram?: { error?: string } };
+          if (ig.instagram?.error) {
+            toast.error(language === 'zh' ? ig.instagram.error : ig.instagram.error);
+          } else {
+            toast.success(language === 'zh' ? '竞品数据已更新' : 'Competitive cache updated');
+          }
+          return;
+        }
+        if (pollData.phase !== 'running') {
+          throw new Error(String(pollData.error || 'Unexpected poll response'));
+        }
+      }
+      throw new Error(
+        language === 'zh'
+          ? '轮询超时（约 10 分钟）：请稍后重试或到 Apify Console 查看 Run 是否仍在执行。'
+          : 'Polling timed out (~10 min). Retry or check the run in Apify Console.'
+      );
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error(language === 'zh' ? `同步失败: ${msg}` : `Sync failed: ${msg}`);
     } finally {
       setCompetitiveSyncing(false);
     }

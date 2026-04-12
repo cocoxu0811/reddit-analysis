@@ -1,7 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
 import { getCompetitiveCacheKv, setCompetitiveCacheKv } from "../db/sqlite";
-import { resolveInstagramParams, runInstagramScraper } from "./instagramApify";
+import {
+  pollInstagramActorRun,
+  resolveInstagramParams,
+  runInstagramScraper,
+  startInstagramActorRun,
+} from "./instagramApify";
 
 const ROOT = process.cwd();
 export const COMPETITIVE_CONFIG_FILE = path.join(ROOT, ".data", "competitive-config.json");
@@ -114,4 +119,72 @@ export async function runCompetitiveDaily(): Promise<CompetitiveCacheV1> {
 
   await writeCompetitiveCache(base);
   return base;
+}
+
+/**
+ * HTTP「立即同步」第一步：只投递 Apify Actor（秒级返回），避免 Vercel 单函数 10s/60s 上限内阻塞整段爬取。
+ */
+export async function competitiveSyncStart(): Promise<{ runId: string; defaultDatasetId: string }> {
+  const token = process.env.APIFY_TOKEN?.trim();
+  if (!token) {
+    throw new Error("Missing APIFY_TOKEN");
+  }
+  const fileCfg = await loadCompetitiveConfig();
+  const { handles, resultsLimit } = resolveInstagramParams(fileCfg || {});
+  return startInstagramActorRun(token, handles, { resultsLimit });
+}
+
+export type CompetitiveSyncPollResult =
+  | { phase: "running"; status: string }
+  | { phase: "done"; cache: CompetitiveCacheV1 };
+
+/**
+ * HTTP 轮询：单次请求内只查状态 +（若已完成）拉 Dataset 写缓存，保持短时。
+ */
+export async function competitiveSyncPoll(runId: string): Promise<CompetitiveSyncPollResult> {
+  const token = process.env.APIFY_TOKEN?.trim();
+  if (!token) {
+    throw new Error("Missing APIFY_TOKEN");
+  }
+  const fileCfg = await loadCompetitiveConfig();
+  const { handles, resultsLimit } = resolveInstagramParams(fileCfg || {});
+
+  const outcome = await pollInstagramActorRun(token, runId.trim(), handles);
+  const now = new Date().toISOString();
+
+  if (outcome.kind === "running") {
+    return { phase: "running", status: outcome.status };
+  }
+
+  if (outcome.kind === "failed") {
+    const cache: CompetitiveCacheV1 = {
+      version: 1,
+      updatedAt: now,
+      instagram: {
+        fetchedAt: now,
+        runId,
+        resultsLimit,
+        handles,
+        error: `${outcome.status}: ${outcome.message}`,
+        postsByUsername: {},
+      },
+    };
+    await writeCompetitiveCache(cache);
+    return { phase: "done", cache };
+  }
+
+  const cache: CompetitiveCacheV1 = {
+    version: 1,
+    updatedAt: now,
+    instagram: {
+      fetchedAt: now,
+      runId: outcome.runId,
+      defaultDatasetId: outcome.defaultDatasetId,
+      resultsLimit,
+      handles,
+      postsByUsername: outcome.postsByUsername,
+    },
+  };
+  await writeCompetitiveCache(cache);
+  return { phase: "done", cache };
 }
