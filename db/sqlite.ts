@@ -15,13 +15,30 @@ type DatabaseSyncInstance = InstanceType<
   typeof import("node:sqlite").DatabaseSync
 >;
 
-let DatabaseSyncCtor: (typeof import("node:sqlite").DatabaseSync) | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  DatabaseSyncCtor = require("node:sqlite").DatabaseSync;
-} catch {
-  DatabaseSyncCtor = null;
+/** Node 22+ 首次加载 `node:sqlite` 会打印 ExperimentalWarning；仅在此短暂屏蔽，不影响其它告警 */
+function requireDatabaseSync(): (typeof import("node:sqlite").DatabaseSync) | null {
+  const prev = process.emitWarning;
+  process.emitWarning = ((warning: string | Error, type?: string, code?: string, ctor?: Function) => {
+    const msg =
+      typeof warning === "string" ? warning : (warning && typeof warning === "object" && "message" in warning
+        ? String((warning as Error).message)
+        : "");
+    if (type === "ExperimentalWarning" && /SQLite is an experimental feature/i.test(msg)) {
+      return;
+    }
+    return prev.call(process, warning, type as never, code, ctor);
+  }) as typeof process.emitWarning;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("node:sqlite").DatabaseSync;
+  } catch {
+    return null;
+  } finally {
+    process.emitWarning = prev;
+  }
 }
+
+const DatabaseSyncCtor: (typeof import("node:sqlite").DatabaseSync) | null = requireDatabaseSync();
 
 /** 与 server 写入的 .data/*.json 一致：请在项目根目录启动（npm run dev / node dist/server.cjs） */
 export const DATA_DIR = path.join(process.cwd(), ".data");
