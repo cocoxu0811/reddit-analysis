@@ -1,3 +1,4 @@
+import "proxy-agent";
 import { ApifyClient } from "apify-client";
 import {
   DEFAULT_INSTAGRAM_HANDLES,
