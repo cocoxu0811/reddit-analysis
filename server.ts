@@ -5,7 +5,7 @@ import { Client } from "@notionhq/client";
 import path from "path";
 import fs from "fs/promises";
 import cron from "node-cron";
-import { scanSubreddit, scanMultipleSubreddits } from "./lib/redditMonitor";
+import { scanSubreddit, scanMultipleSubreddits } from "./lib/redditMonitor.js";
 import {
   competitiveSyncPoll,
   competitiveSyncStart,
