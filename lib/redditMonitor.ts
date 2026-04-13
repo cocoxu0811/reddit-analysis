@@ -2,8 +2,17 @@
  * Subreddit 新帖拉取 + 评论摘录 + 情绪/类别分类（启发式 + 可选 Gemini）
  */
 
+import { ApifyClient } from "apify-client";
 import { GoogleGenAI, Type } from "@google/genai";
 import { fetchRedditApiJson } from "./redditLinkConvert.js";
+
+/** 与 Instagram 竞品共用 APIFY_TOKEN；默认 trudax/reddit-scraper-lite（按 Apify 用量计费） */
+const DEFAULT_APIFY_REDDIT_ACTOR = "trudax/reddit-scraper-lite";
+
+/** 配置 APIFY_TOKEN 且未设 REDDIT_MONITOR_DIRECT=true 时，版块监控走 Apify，避免 Vercel 直连 Reddit 403 */
+function useApifyMonitor(): boolean {
+  return Boolean(process.env.APIFY_TOKEN?.trim()) && process.env.REDDIT_MONITOR_DIRECT !== "true";
+}
 
 export const EMOTION_LABELS = ["疑惑", "生气", "兴奋", "失望", "讽刺", "中性"] as const;
 export const CATEGORY_LABELS = ["推荐", "吐槽", "讨论", "求助", "展示"] as const;
@@ -50,6 +59,32 @@ export function normalizeSubreddit(raw: string): string {
     throw new Error("Invalid subreddit name");
   }
   return s;
+}
+
+async function runRedditApifyDatasetForSub(sub: string, maxPostCount: number): Promise<Record<string, unknown>[]> {
+  const token = process.env.APIFY_TOKEN?.trim();
+  if (!token) {
+    throw new Error("缺少 APIFY_TOKEN：版块监控已改为通过 Apify 拉取 Reddit，请与 Instagram 竞品共用同一 Token。");
+  }
+  const actorId = process.env.APIFY_REDDIT_ACTOR?.trim() || DEFAULT_APIFY_REDDIT_ACTOR;
+  const client = new ApifyClient({ token });
+  const input: Record<string, unknown> = {
+    startUrls: [{ url: `https://www.reddit.com/r/${encodeURIComponent(sub)}/new/` }],
+    maxPostCount,
+  };
+  const run = await client.actor(actorId).call(input);
+  if (!run.defaultDatasetId) return [];
+  const { items } = await client.dataset(run.defaultDatasetId).listItems({ limit: 10000 });
+  return (items ?? []) as Record<string, unknown>[];
+}
+
+function apifyPostBelongsToSub(raw: Record<string, unknown>, sub: string): boolean {
+  const want = sub.toLowerCase();
+  const parsed = String(raw.parsedCommunityName ?? "").toLowerCase();
+  if (parsed && parsed === want) return true;
+  const comm = String(raw.communityName ?? "");
+  const m = comm.match(/^r\/([^/]+)/i);
+  return m ? m[1].toLowerCase() === want : false;
 }
 
 async function fetchRedditJson(url: string): Promise<any> {
@@ -248,13 +283,30 @@ async function buildMonitoredPostFromT3(
   return result;
 }
 
-/** 分页 /new，收集本地日 [startMs,endMs] 内的帖（最多 maxPosts 条） */
+/** 分页 /new，收集本地日 [startMs,endMs] 内的帖（最多 maxPosts 条）；Apify 模式下为一批帖子再按时间筛 */
 async function collectT3ForDayRange(
   sub: string,
   startMs: number,
   endMs: number,
   maxPosts: number
 ): Promise<any[]> {
+  if (useApifyMonitor()) {
+    const rows = await runRedditApifyDatasetForSub(sub, Math.min(200, maxPosts * 10));
+    const collected: Record<string, unknown>[] = [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const o = row as Record<string, unknown>;
+      if (String(o.dataType) !== "post") continue;
+      if (!apifyPostBelongsToSub(o, sub)) continue;
+      const t = new Date(String(o.createdAt ?? 0)).getTime();
+      if (t >= startMs && t <= endMs) {
+        collected.push(o);
+        if (collected.length >= maxPosts) return collected;
+      }
+    }
+    return collected;
+  }
+
   const MAX_PAGES = 22;
   const collected: any[] = [];
   let after: string | undefined;
@@ -442,6 +494,68 @@ async function classifyGemini(
   return null;
 }
 
+/** Apify Dataset 中 dataType=post 的条目 → MonitoredPost（不另拉评论线程，避免再请求 Reddit） */
+async function apifyRowToMonitoredPost(
+  raw: Record<string, unknown>,
+  sub: string,
+  options: { useGemini?: boolean; delayMs?: number }
+): Promise<MonitoredPost | null> {
+  if (String(raw.dataType) !== "post") return null;
+  if (!apifyPostBelongsToSub(raw, sub)) return null;
+
+  const title = String(raw.title ?? "").slice(0, 500);
+  const body = String(raw.body ?? "").slice(0, 8000);
+  const comments: MonitoredComment[] = [];
+  let emotion: EmotionLabel;
+  let category: CategoryLabel;
+  let classificationSource: "heuristic" | "gemini" = "heuristic";
+
+  const h = classifyHeuristic(title, body, comments);
+  emotion = h.emotion;
+  category = h.category;
+  let intentMarks = extractIntentMarks(title, body, comments);
+
+  if (options.useGemini) {
+    const g = await classifyGemini(title, body, comments);
+    if (g) {
+      emotion = g.emotion;
+      category = g.category;
+      classificationSource = "gemini";
+      intentMarks = g.intentMarks;
+    }
+  }
+
+  let createdAt = "";
+  try {
+    const d = new Date(String(raw.createdAt ?? ""));
+    createdAt = Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  } catch {
+    createdAt = new Date().toISOString();
+  }
+
+  const flairRaw = raw.linkFlair ?? raw.authorFlair ?? raw.link_flair_text;
+  const delay = options.delayMs ?? 180;
+  await new Promise((r) => setTimeout(r, delay));
+
+  return {
+    id: String(raw.id ?? raw.parsedId ?? ""),
+    title,
+    body,
+    url: String(raw.url ?? ""),
+    author: String(raw.username ?? ""),
+    createdAt,
+    subreddit: String(raw.communityName ?? `r/${sub}`),
+    flair: flairRaw != null && String(flairRaw).trim() ? String(flairRaw) : null,
+    numComments: typeof raw.numberOfComments === "number" ? raw.numberOfComments : 0,
+    score: typeof raw.upVotes === "number" ? raw.upVotes : 0,
+    comments,
+    emotion,
+    category,
+    classificationSource,
+    intentMarks,
+  };
+}
+
 export async function scanSubreddit(
   rawSub: string,
   limit: number,
@@ -449,6 +563,21 @@ export async function scanSubreddit(
 ): Promise<{ subreddit: string; fetchedAt: string; posts: MonitoredPost[] }> {
   const sub = normalizeSubreddit(rawSub);
   const lim = Math.min(Math.max(limit || 10, 1), 25);
+
+  if (useApifyMonitor()) {
+    const rows = await runRedditApifyDatasetForSub(sub, lim);
+    const posts: MonitoredPost[] = [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const built = await apifyRowToMonitoredPost(row, sub, options);
+      if (built) posts.push(built);
+    }
+    return {
+      subreddit: sub,
+      fetchedAt: new Date().toISOString(),
+      posts,
+    };
+  }
 
   const listingUrl = `https://www.reddit.com/r/${sub}/new.json?limit=${lim}&raw_json=1`;
   const listing = await fetchRedditJson(listingUrl);
@@ -523,7 +652,9 @@ export async function scanMultipleSubreddits(
       const sub = list[i];
       const rawPosts = await collectT3ForDayRange(sub, startMs, endMs, lim);
       for (const p of rawPosts) {
-        const built = await buildMonitoredPostFromT3(p, sub, options);
+        const built = useApifyMonitor()
+          ? await apifyRowToMonitoredPost(p as Record<string, unknown>, sub, options)
+          : await buildMonitoredPostFromT3(p, sub, options);
         if (built) allPosts.push(built);
       }
       if (i < list.length - 1) {

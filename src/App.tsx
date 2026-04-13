@@ -640,7 +640,8 @@ const translations = {
     monitorUseGemini: "AI labels & user intents (needs GEMINI_API_KEY on server)",
     monitorLimit: "Max posts",
     monitorFilterAll: "All",
-    monitorEmpty: "Enter a subreddit and tap Fetch. Uses public JSON; be gentle on refresh rate.",
+    monitorEmpty:
+      "Enter a subreddit and tap Fetch. Production uses Apify (same APIFY_TOKEN as Instagram) so Reddit does not block cloud IPs. Without a token, local dev falls back to direct Reddit JSON.",
     monitorHelp:
       "Latest mode uses /new. By-date mode collects posts whose timestamps fall on the selected local calendar day (may paginate). Each card can Open in Analyze — run Analyze to save to History, then use Content Generator.",
     monitorCompetitiveHint:
@@ -793,7 +794,8 @@ const translations = {
     monitorUseGemini: "使用 AI 标注情绪/类别与用户倾向（需服务端 GEMINI_API_KEY）",
     monitorLimit: "最多帖数",
     monitorFilterAll: "全部",
-    monitorEmpty: "输入版块名并点击拉取。数据来自 Reddit 公开 JSON，请勿过高频率请求。",
+    monitorEmpty:
+      "输入版块名并点击拉取。线上默认经 Apify 拉取（与 Instagram 竞品共用 APIFY_TOKEN），避免 Reddit 拦截云出口；本地未配置 Token 时仍直连 Reddit JSON。请勿过高频率请求。",
     monitorHelp:
       "「最新帖」走 /new；「按本地日期」只收录所选日 0:00～23:59 内发布的帖（会分页）。每条可点「去分析」填入分析页；分析成功后会写入历史，再去「内容生成」即可。",
     monitorCompetitiveHint:
