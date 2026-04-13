@@ -6,8 +6,10 @@ import fs from "fs/promises";
 import { scanSubreddit, scanMultipleSubreddits } from "../lib/redditMonitor.js";
 /** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败 */
 
-/** Vercel 打包后勿用 import.meta.url；与 server/db 一致用 cwd */
-const MONITOR_CACHE_FILE = path.join(process.cwd(), ".data", "monitor-cache.json");
+/** 本地：.data/monitor-cache.json；Vercel 只读 /var/task，可写目录为 /tmp */
+const MONITOR_CACHE_FILE = process.env.VERCEL
+  ? path.join("/tmp", "reddit-analysis", "monitor-cache.json")
+  : path.join(process.cwd(), ".data", "monitor-cache.json");
 
 const app = express();
 let memoryHistory: any[] = [];
@@ -302,8 +304,12 @@ app.post("/api/monitor/scan", async (req, res) => {
       result = await scanMultipleSubreddits(subsList, Number(limit), opts);
     }
 
-    await fs.mkdir(path.dirname(MONITOR_CACHE_FILE), { recursive: true });
-    await fs.writeFile(MONITOR_CACHE_FILE, JSON.stringify({ success: true, mode, ...result }, null, 2), "utf-8");
+    try {
+      await fs.mkdir(path.dirname(MONITOR_CACHE_FILE), { recursive: true });
+      await fs.writeFile(MONITOR_CACHE_FILE, JSON.stringify({ success: true, mode, ...result }, null, 2), "utf-8");
+    } catch (e) {
+      console.error("[monitor] cache write skipped:", e);
+    }
     res.json({ success: true, mode, ...result });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || "Monitor scan failed" });
