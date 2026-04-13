@@ -3,8 +3,7 @@
  */
 
 import { GoogleGenAI, Type } from "@google/genai";
-
-const UA = "reddit-analysis-monitor/1.0 (by local reddit-analysis tool; +https://github.com)";
+import { fetchRedditApiJson } from "./redditLinkConvert.js";
 
 export const EMOTION_LABELS = ["疑惑", "生气", "兴奋", "失望", "讽刺", "中性"] as const;
 export const CATEGORY_LABELS = ["推荐", "吐槽", "讨论", "求助", "展示"] as const;
@@ -54,17 +53,7 @@ export function normalizeSubreddit(raw: string): string {
 }
 
 async function fetchRedditJson(url: string): Promise<any> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": UA,
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Reddit HTTP ${res.status}: ${t.slice(0, 200)}`);
-  }
-  return res.json();
+  return fetchRedditApiJson(url) as Promise<any>;
 }
 
 function walkComments(children: any[], acc: MonitoredComment[], max: number): void {

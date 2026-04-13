@@ -143,6 +143,44 @@ async function fetchRedditJsonOnce(jsonUrl: string): Promise<Response> {
   });
 }
 
+/**
+ * 将任意 reddit.com 的完整 URL（path/query 已含 .json 等）仅替换 host，供版块监控 /new、帖内 thread 等共用。
+ */
+export function rewriteRedditHostname(fullUrl: string, hostname: "old.reddit.com" | "www.reddit.com"): string {
+  const url = new URL(fullUrl);
+  if (!url.hostname.toLowerCase().includes("reddit.com")) {
+    throw new Error("Only reddit.com URLs are supported");
+  }
+  mapUtmStrip(url);
+  url.hostname = hostname;
+  return url.toString();
+}
+
+/**
+ * 拉取 Reddit 匿名 JSON API（与「链接转 JSON」相同策略：优先 old，403 再试 www）。
+ * 用于 `r/sub/new.json`、帖详情 `…permalink….json` 等已拼好的 URL。
+ */
+export async function fetchRedditApiJson(fullUrl: string): Promise<unknown> {
+  let jsonUrl = rewriteRedditHostname(fullUrl, "old.reddit.com");
+  let response = await fetchRedditJsonOnce(jsonUrl);
+
+  if (response.status === 403) {
+    jsonUrl = rewriteRedditHostname(fullUrl, "www.reddit.com");
+    response = await fetchRedditJsonOnce(jsonUrl);
+  }
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(formatRedditError(response.status, text));
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(formatRedditError(response.status || 502, text));
+  }
+}
+
 export async function fetchRedditJsonForConvert(sourceUrl: string) {
   let jsonUrl = buildRedditJsonUrl(sourceUrl, "old.reddit.com");
   let response = await fetchRedditJsonOnce(jsonUrl);
