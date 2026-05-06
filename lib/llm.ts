@@ -93,8 +93,11 @@ async function generateJsonWithMiniMax(
   model = process.env.MINIMAX_MODEL || "MiniMax-M2.7"
 ): Promise<Record<string, unknown>> {
   const apiKey = requireEnv("MINIMAX_API_KEY");
+  // 国际版: https://api.minimax.io/v1  中国大陆版: https://api.minimax.chat/v1
   const baseUrl = (process.env.MINIMAX_BASE_URL || "https://api.minimax.io/v1").replace(/\/+$/, "");
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const endpoint = `${baseUrl}/chat/completions`;
+
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -110,14 +113,21 @@ async function generateJsonWithMiniMax(
         },
         { role: "user", content: prompt },
       ],
-      temperature: 0.2,
+      temperature: 0.7,
       response_format: { type: "json_object" },
     }),
   });
 
   if (!response.ok) {
     const message = await response.text().catch(() => "");
-    throw new Error(`MiniMax API failed (${response.status}): ${message || response.statusText}`);
+    const keyHint = `key=${apiKey.slice(0, 6)}…`;
+    const urlHint = `url=${endpoint}`;
+    throw new Error(
+      `MiniMax API failed (${response.status}): ${message || response.statusText}\n` +
+        `[调试信息] ${urlHint}, ${keyHint}\n` +
+        `[常见原因] 国际版 Key 请使用 https://api.minimax.io/v1；` +
+        `中国大陆版 Key 请在 Vercel 中将 MINIMAX_BASE_URL 设为 https://api.minimax.chat/v1`
+    );
   }
 
   const data = (await response.json()) as {
