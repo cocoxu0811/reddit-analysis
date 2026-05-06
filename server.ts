@@ -8,6 +8,7 @@ import cron from "node-cron";
 import { scanSubreddit, scanMultipleSubreddits } from "./lib/redditMonitor.js";
 import {
   generateRedditAnalysisReport,
+  generateContentIdeas,
   normalizeAiProvider,
   suggestSubredditsForIdeas,
 } from "./lib/llm.js";
@@ -82,6 +83,25 @@ async function startServer() {
       res.json({ success: true, provider, suggestedSubreddits });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || "Subreddit suggestion failed" });
+    }
+  });
+
+  app.post("/api/content/ideas", async (req, res) => {
+    try {
+      const { report, language = "en", tone = "question", aiProvider = "gemini" } = req.body || {};
+      if (!report || typeof report !== "object") {
+        return res.status(400).json({ success: false, error: "Missing report" });
+      }
+      const provider = normalizeAiProvider(aiProvider);
+      const ideas = await generateContentIdeas(
+        report as any,
+        language === "zh" ? "zh" : "en",
+        String(tone),
+        provider
+      );
+      res.json({ success: true, provider, ideas });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || "Content idea generation failed" });
     }
   });
 

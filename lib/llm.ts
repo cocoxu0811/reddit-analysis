@@ -218,6 +218,115 @@ ${datasetText.substring(0, 30000)}
   return normalizeRedditAnalysisReport(await generateJsonObject(prompt, schema, provider));
 }
 
+// ─── Content idea generation ──────────────────────────────────────────────────
+
+export interface ContentIdeaOutput {
+  title: string;
+  angle: string;
+  basedOn: string[];
+  postTitle: string;
+  postBody: string;
+  suggestedSubreddit: string;
+}
+
+const TONE_DESC: Record<string, { zh: string; en: string }> = {
+  curious: {
+    zh: "疑惑向：语气困惑、真诚，提出'为什么'疑问，承认不确定性",
+    en: "curious: confused, genuine, ask why, admit uncertainty",
+  },
+  question: {
+    zh: "提问向：真诚发问，征求社区经验，无预设答案",
+    en: "question: honest ask, seek lived experience, no predetermined answer",
+  },
+  recommend: {
+    zh: "推荐向：以踩坑过来人视角，分享经验与顺序感，避免广告味",
+    en: "recommend: veteran who was burned, share lessons & sequencing, anti-shill",
+  },
+  rant: {
+    zh: "吐槽向：情绪化但可讨论，有反差与张力，最后落脚可执行建议",
+    en: "rant: heated but discussable, contrast & tension, end with actionable ask",
+  },
+};
+
+export async function generateContentIdeas(
+  report: RedditAnalysisReport,
+  language: "en" | "zh",
+  tone: string,
+  provider: AiProvider = getDefaultAiProvider()
+): Promise<ContentIdeaOutput[]> {
+  const td = TONE_DESC[tone] ?? TONE_DESC.question;
+  const toneDesc = language === "zh" ? td.zh : td.en;
+  const langNote =
+    language === "zh"
+      ? "所有文字（title、angle、postTitle、postBody）必须用简体中文。"
+      : "All text (title, angle, postTitle, postBody) must be in English.";
+
+  const prompt = `
+You are a Reddit content strategist. Based on this Reddit community analysis, generate 6 distinct post ideas that fit the **exact domain** of the discussions.
+
+## Analysis Report
+- Summary: ${report.summary.slice(0, 500)}
+- Pain Points: ${report.painPoints.slice(0, 5).join(" | ")}
+- Praised Features: ${report.praisedFeatures.slice(0, 5).join(" | ")}
+- Mentioned Brands: ${report.mentionedBrands.slice(0, 5).join(" | ")}
+- High-Frequency Words: ${report.highFrequencyWords.slice(0, 5).join(" | ")}
+
+## Tone for ALL 6 ideas
+${toneDesc}
+
+## Critical Rules
+1. **Match the domain exactly.** Infer the community topic (adult toys, fitness, gaming, cooking, SaaS, etc.) purely from the analysis above and write accordingly. Never import irrelevant jargon (e.g. "migration", "permissions", "KPI", "landing page", "team bandwidth" in an adult-toys context).
+2. Each idea must be genuinely distinct — different hook, different angle, different aspect of the data.
+3. postBody must be 120-250 words, written like a real Reddit user (first-person, honest, imperfect).
+4. suggestedSubreddit must be a real, active subreddit matching the domain (e.g. r/SexToys, r/tifu, r/relationship_advice — NOT r/SaaS or r/smallbusiness unless the data is about SaaS/business).
+5. ${langNote}
+
+## Output — strict JSON only
+Return a JSON object with key "ideas" containing an array of exactly 6 objects:
+{
+  "ideas": [
+    {
+      "title": "short idea label (≤15 words)",
+      "angle": "one-sentence content angle / hook strategy",
+      "basedOn": ["pain or feature or brand this idea references"],
+      "postTitle": "Reddit post title (≤15 words)",
+      "postBody": "full post body text",
+      "suggestedSubreddit": "r/ExampleSubreddit"
+    }
+  ]
+}
+`;
+
+  const raw = await generateJsonObject(
+    prompt,
+    {
+      type: "object",
+      properties: {
+        ideas: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              angle: { type: "string" },
+              basedOn: { type: "array", items: { type: "string" } },
+              postTitle: { type: "string" },
+              postBody: { type: "string" },
+              suggestedSubreddit: { type: "string" },
+            },
+            required: ["title", "angle", "basedOn", "postTitle", "postBody", "suggestedSubreddit"],
+          },
+        },
+      },
+      required: ["ideas"],
+    },
+    provider
+  );
+
+  const ideas = Array.isArray(raw.ideas) ? (raw.ideas as ContentIdeaOutput[]) : [];
+  return ideas.slice(0, 6);
+}
+
 function normalizeSubredditName(raw: unknown): string {
   const s = String(raw ?? "")
     .trim()

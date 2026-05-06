@@ -773,8 +773,6 @@ export default function App() {
 
   const withAiSuggestedSubreddits = async (ideas: ContentIdea[]): Promise<ContentIdea[]> => {
     if (ideas.length === 0) return ideas;
-    const reqSeq = ++contentSuggestSeqRef.current;
-    setContentSubSuggesting(true);
     try {
       const res = await fetch('/api/content/subreddits', {
         method: 'POST',
@@ -795,7 +793,6 @@ export default function App() {
       if (!res.ok || data.success === false || !Array.isArray(data.suggestedSubreddits)) {
         throw new Error(data.error || 'Subreddit suggestion failed');
       }
-      if (reqSeq !== contentSuggestSeqRef.current) return ideas;
       return ideas.map((idea, idx) => ({
         ...idea,
         content: {
@@ -806,10 +803,41 @@ export default function App() {
     } catch (error: any) {
       console.warn('[content] subreddit suggestion fallback:', error?.message || error);
       return ideas;
-    } finally {
-      if (reqSeq === contentSuggestSeqRef.current) {
-        setContentSubSuggesting(false);
+    }
+  };
+
+  /**
+   * Call /api/content/ideas (AI domain-aware generation).
+   * Falls back to static templates if the request fails.
+   */
+  const fetchAiContentIdeas = async (
+    src: Report,
+    seq: number
+  ): Promise<ContentIdea[] | null> => {
+    try {
+      const res = await fetch('/api/content/ideas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report: src, language, tone: contentTone, aiProvider }),
+      });
+      const data = (await res.json()) as { success?: boolean; ideas?: any[]; error?: string };
+      if (!res.ok || data.success === false || !Array.isArray(data.ideas)) {
+        throw new Error(data.error || 'Content idea generation failed');
       }
+      if (seq !== contentSuggestSeqRef.current) return null;
+      return data.ideas.map((raw: any) => ({
+        title: String(raw.title ?? ''),
+        angle: String(raw.angle ?? ''),
+        basedOn: Array.isArray(raw.basedOn) ? raw.basedOn.map(String) : [],
+        content: {
+          postTitle: String(raw.postTitle ?? ''),
+          postBody: String(raw.postBody ?? ''),
+          suggestedSubreddit: raw.suggestedSubreddit ? String(raw.suggestedSubreddit) : undefined,
+        },
+      }));
+    } catch (error: any) {
+      console.warn('[content] AI idea generation fallback:', error?.message || error);
+      return null;
     }
   };
 
@@ -820,9 +848,16 @@ export default function App() {
       setContentIdeas([]);
       return;
     }
+    const reqSeq = ++contentSuggestSeqRef.current;
+    // Show template-based ideas immediately as placeholder
     const baseIdeas = buildIdeasWithDrafts(src, language, contentTone);
     setContentIdeas(baseIdeas);
-    withAiSuggestedSubreddits(baseIdeas).then((nextIdeas) => setContentIdeas(nextIdeas));
+    setContentSubSuggesting(true);
+    fetchAiContentIdeas(src, reqSeq).then((aiIdeas) => {
+      if (reqSeq !== contentSuggestSeqRef.current) return;
+      setContentIdeas(aiIdeas ?? baseIdeas);
+      setContentSubSuggesting(false);
+    });
   }, [language, report, selectedHistoryId, historyRecords, contentTone, aiProvider]);
 
   const persistHistory = (nextRecords: HistoryRecord[]) => {
@@ -867,10 +902,15 @@ export default function App() {
       setContentIdeas([]);
       return;
     }
+    const reqSeq = ++contentSuggestSeqRef.current;
     const baseIdeas = buildIdeasWithDrafts(baseReport, language, contentTone);
     setContentIdeas(baseIdeas);
-    const nextIdeas = await withAiSuggestedSubreddits(baseIdeas);
-    setContentIdeas(nextIdeas);
+    setContentSubSuggesting(true);
+    const aiIdeas = await fetchAiContentIdeas(baseReport, reqSeq);
+    if (reqSeq === contentSuggestSeqRef.current) {
+      setContentIdeas(aiIdeas ?? baseIdeas);
+      setContentSubSuggesting(false);
+    }
   };
 
   const toAnalysisText = (raw: string): string => {
