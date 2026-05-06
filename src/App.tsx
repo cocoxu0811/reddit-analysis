@@ -1375,6 +1375,17 @@ export default function App() {
             <h1 className="text-xl font-semibold tracking-tight text-stone-800">{t.title}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 px-2 py-1.5 text-sm font-medium text-stone-600 bg-white border border-stone-200 rounded-full">
+              <span className="text-xs text-stone-500">{t.aiProviderLabel}</span>
+              <select
+                value={aiProvider}
+                onChange={(e) => setAiProvider(e.target.value as AiProvider)}
+                className="bg-transparent text-sm text-stone-700 focus:outline-none"
+              >
+                <option value="gemini">{t.aiProviderGemini}</option>
+                <option value="minimax">{t.aiProviderMinimax}</option>
+              </select>
+            </label>
             <button 
               onClick={() => setLanguage(lang => lang === 'en' ? 'zh' : 'en')}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-200 rounded-full transition-colors"
@@ -1541,18 +1552,6 @@ export default function App() {
                     placeholder={t.jsonAreaPlaceholder}
                     className="w-full flex-1 min-h-[200px] p-4 border border-stone-200 rounded-xl focus:ring-2 focus:ring-reddit-500/40 focus:border-reddit-500 resize-none text-sm bg-white shadow-sm"
                   />
-
-                  <label className="shrink-0 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-700">
-                    <span className="font-medium">{t.aiProviderLabel}</span>
-                    <select
-                      value={aiProvider}
-                      onChange={(e) => setAiProvider(e.target.value as AiProvider)}
-                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-reddit-500 focus:outline-none focus:ring-2 focus:ring-reddit-500/20"
-                    >
-                      <option value="gemini">{t.aiProviderGemini}</option>
-                      <option value="minimax">{t.aiProviderMinimax}</option>
-                    </select>
-                  </label>
 
                   <button
                     type="button"
