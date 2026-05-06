@@ -18,6 +18,18 @@ export const COMPETITIVE_CACHE_FILE = process.env.VERCEL
 export interface CompetitiveCacheV1 {
   version: 1;
   updatedAt: string;
+  history?: Array<{
+    updatedAt: string;
+    instagram?: {
+      fetchedAt: string;
+      runId?: string;
+      defaultDatasetId?: string;
+      resultsLimit: number;
+      handles: string[];
+      error?: string;
+      postsByUsername: Record<string, import("./instagramApify").InstagramPostLite[]>;
+    };
+  }>;
   instagram?: {
     fetchedAt: string;
     runId?: string;
@@ -27,6 +39,22 @@ export interface CompetitiveCacheV1 {
     error?: string;
     postsByUsername: Record<string, import("./instagramApify").InstagramPostLite[]>;
   };
+}
+
+function buildHistoryEntry(cache: CompetitiveCacheV1): NonNullable<CompetitiveCacheV1["history"]>[number] {
+  return {
+    updatedAt: cache.updatedAt,
+    instagram: cache.instagram ? { ...cache.instagram } : undefined,
+  };
+}
+
+function mergeWithHistory(
+  prev: CompetitiveCacheV1 | null,
+  next: CompetitiveCacheV1,
+  keep = 20
+): CompetitiveCacheV1 {
+  const hist = [buildHistoryEntry(next), ...(prev?.history || [])].slice(0, keep);
+  return { ...next, history: hist };
 }
 
 async function readJsonFile<T>(file: string): Promise<T | null> {
@@ -117,8 +145,10 @@ export async function runCompetitiveDaily(): Promise<CompetitiveCacheV1> {
     }
   }
 
-  await writeCompetitiveCache(base);
-  return base;
+  const prev = await readCompetitiveCache();
+  const next = mergeWithHistory(prev, base);
+  await writeCompetitiveCache(next);
+  return next;
 }
 
 /**
@@ -169,8 +199,10 @@ export async function competitiveSyncPoll(runId: string): Promise<CompetitiveSyn
         postsByUsername: {},
       },
     };
-    await writeCompetitiveCache(cache);
-    return { phase: "done", cache };
+    const prev = await readCompetitiveCache();
+    const next = mergeWithHistory(prev, cache);
+    await writeCompetitiveCache(next);
+    return { phase: "done", cache: next };
   }
 
   const cache: CompetitiveCacheV1 = {
@@ -185,6 +217,8 @@ export async function competitiveSyncPoll(runId: string): Promise<CompetitiveSyn
       postsByUsername: outcome.postsByUsername,
     },
   };
-  await writeCompetitiveCache(cache);
-  return { phase: "done", cache };
+  const prev = await readCompetitiveCache();
+  const next = mergeWithHistory(prev, cache);
+  await writeCompetitiveCache(next);
+  return { phase: "done", cache: next };
 }

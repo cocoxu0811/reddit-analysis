@@ -23,7 +23,15 @@ import {
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import Papa from 'papaparse';
-import { GoogleGenAI, Type } from '@google/genai';
+import {
+  buildIdeasWithDrafts,
+  CONTENT_TONE_IDS,
+  DEFAULT_CONTENT_TONE,
+  type ContentIdea,
+  type ContentToneId,
+} from './contentToneDrafts';
+
+type AiProvider = 'gemini' | 'minimax';
 
 interface Report {
   summary: string;
@@ -41,21 +49,6 @@ interface HistoryRecord {
   sourceLabel: string;
   inputText: string;
   report: Report;
-}
-
-/** Reddit 发帖草案：标题栏 + 正文（口语、分段、提问、TL;DR/Edit 等常见结构） */
-interface TopicContent {
-  postTitle: string;
-  postBody: string;
-  /** 仅供参考的版块方向，实际发帖前请核对各 sub 规则 */
-  suggestedSubreddit?: string;
-}
-
-interface ContentIdea {
-  title: string;
-  angle: string;
-  basedOn: string[];
-  content: TopicContent;
 }
 
 interface RedditConvertResponse {
@@ -79,7 +72,7 @@ interface MonitorPostRow {
   comments: Array<{ id: string; body: string; author: string; score: number }>;
   emotion: string;
   category: string;
-  classificationSource: 'heuristic' | 'gemini';
+  classificationSource: 'heuristic' | AiProvider;
   /** 旧缓存可能没有；新拉取帖文会带服务端归纳的四类句摘 */
   intentMarks?: {
     likes: string[];
@@ -242,328 +235,6 @@ function getDemoReport(lang: 'en' | 'zh'): Report {
   };
 }
 
-function buildIdeasWithDrafts(report: Report, lang: 'en' | 'zh'): ContentIdea[] {
-  const pains = report.painPoints.slice(0, 5);
-  const features = report.praisedFeatures.slice(0, 5);
-  const brands = report.mentionedBrands.slice(0, 5);
-  const words = report.highFrequencyWords.slice(0, 5);
-  const summaryHint =
-    report.summary.length > 200 ? `${report.summary.slice(0, 200)}…` : report.summary;
-
-  const ideas: ContentIdea[] = [];
-
-  if (pains.length && features.length) {
-    ideas.push({
-      title:
-        lang === 'zh'
-          ? `从「${pains[0]}」到「${features[0]}」：用户真实需求驱动的选品指南`
-          : `From “${pains[0]}” to “${features[0]}”: a practical buying guide`,
-      angle:
-        lang === 'zh'
-          ? `用 Reddit 用户的高频痛点切入，给出可执行的产品筛选框架，再用被称赞特征验证方案有效性。`
-          : `Start from recurring pain, add a lightweight selection framework, then validate with praised features.`,
-      basedOn: [pains[0], features[0]],
-      content:
-        lang === 'zh'
-          ? {
-              postTitle: `纠结选型：一边被「${pains[0]}」折磨，一边又羡慕别人说的「${features[0]}」——你们怎么平衡的？`,
-              postBody: `潜水挺久了，最近刷帖发现不少人跟我一样卡在同一个点：嘴上都在夸「${features[0]}」，真自己用起来却被「${pains[0]}」搞崩心态。
-
-**背景（我整理的讨论共识）**  
-${summaryHint}
-
-**我现在的具体情况**  
-• 团队不大，预算也紧，试过和 ${brands.slice(0, 2).join('、') || '几款常见工具'} 打交道，总觉得要么贵要么不顺手。  
-• 我知道「${features[0]}」很重要，但不知道值不值得为了它牺牲别的（比如迁移成本、权限、协作）。
-
-**想请教 sub 里的朋友**  
-1) 你们是怎么在「少踩 ${pains[0]} 的坑」和「拿到 ${features[0]}」之间做取舍的？  
-2) 有没有「低成本试错」的流程？比如先试用、再小范围上线？
-
-**TL;DR：** 求真实经验，不要广告口吻；有好 workflow 我按评论补一版「编辑：更新」。
-
----  
-（发帖前请读版规；若标题超长可自行缩短。）`,
-              suggestedSubreddit: 'r/smallbusiness',
-            }
-          : {
-              postTitle: `How do you balance “${pains[0]}” vs wanting “${features[0]}”? Small team, tight budget.`,
-              postBody: `Long-time lurker — seeing the same tension in threads: people praise “${features[0]}” but still rant about “${pains[0]}” day-to-day.
-
-**What I’m seeing in recent discussions (paraphrased)**  
-${summaryHint}
-
-**My situation**  
-• Small team, not trying to buy an enterprise stack. Messed with ${brands.slice(0, 2).join(' / ') || 'a few tools'} and keep bouncing between price jumps and “almost there” UX.  
-• I care about “${features[0]}” but not if it means ignoring “${pains[0]}” forever.
-
-**Questions for this sub**  
-1) What tradeoffs did you actually make — and what would you skip if you did it again?  
-2) Any lightweight trial playbook (pilot team, migration checklist, permission gotchas)?
-
-**TL;DR:** Looking for lived experience, not vendor pitches. Will edit the post with a summary if people share solid workflows.
-
----  
-(Check sub rules + title length before posting.)`,
-              suggestedSubreddit: 'r/smallbusiness',
-            },
-    });
-  }
-
-  if (pains.length >= 2) {
-    ideas.push({
-      title:
-        lang === 'zh'
-          ? `为什么用户总在抱怨「${pains[1]}」？拆解背后的使用场景与决策误区`
-          : `Why people keep complaining about “${pains[1]}”: scenes and decision traps`,
-      angle:
-        lang === 'zh'
-          ? `从抱怨词背后挖场景，分析「信息不足-预期偏差-购买后落差」的链路，并给出内容教育机会。`
-          : `Trace scenes behind the rant: information gap → wrong expectation → post-purchase gap, then teach.`,
-      basedOn: [pains[1]],
-      content:
-        lang === 'zh'
-          ? {
-              postTitle: `是不是只有我一个人被「${pains[1]}」坑过？想听听你们当时缺了哪条信息`,
-              postBody: `开贴想聊透一点：不是单纯吐槽「${pains[1]}」，而是想搞明白——**到底哪一步信息不够，才会做出后悔的决策**。
-
-我注意到讨论里这个词经常和 ${brands[0] || '某些产品'}、以及「${words[0] || '相关话题'}」绑在一起出现。
-
-**我理解的链条是**  
-① 触发场景 → ② 当时手里有哪些信息 → ③ 结果和预期差在哪  
-（欢迎指正）
-
-**想请大家补充真实故事**  
-• 你第一次遇到「${pains[1]}」是在什么岗位/团队规模？  
-• 如果重来一次，你会先查清哪三件事再问采购/老板？
-
-**TL;DR：** 收集「信息缺口」案例，后面我整理成 checklist 发编辑更新。
-
-**编辑：** 若版主觉得像问卷我可以改标题。`,
-              suggestedSubreddit: 'r/Entrepreneur',
-            }
-          : {
-              postTitle: `Did anyone else get burned by “${pains[1]}” because they were missing context? What would you check first next time?`,
-              postBody: `Not looking for a pile-on — trying to understand *where the info gap actually is* when people hit “${pains[1]}”.
-
-In the threads I read, it keeps showing up next to ${brands[0] || 'certain tools'} and “${words[0] || 'related keywords'}”.
-
-**My mental model**  
-1) What triggered it  
-2) What you knew (and didn’t) at decision time  
-3) Where reality diverged from expectations  
-
-**Ask**  
-• What role / team size were you in when it first hit?  
-• If you could rerun the decision, what 3 questions would you force an answer to before buying?
-
-**TL;DR:** Collecting “missing info” stories — I’ll edit in a checklist if this gets traction.
-
-**Edit:** Happy to rephrase if mods want less survey-like tone.`,
-              suggestedSubreddit: 'r/Entrepreneur',
-            },
-    });
-  }
-
-  if (features.length >= 2) {
-    ideas.push({
-      title:
-        lang === 'zh'
-          ? `用户最认可的产品特征：${features.slice(0, 2).join(' + ')} 真的更重要吗？`
-          : `Most praised traits: ${features.slice(0, 2).join(' + ')} — do they actually matter more?`,
-      angle:
-        lang === 'zh'
-          ? `对比「用户说喜欢」与「讨论频次」，提炼产品文案与页面结构应强化的卖点。`
-          : `Contrast stated likes with frequency to sharpen copy and page hierarchy.`,
-      basedOn: features.slice(0, 2),
-      content:
-        lang === 'zh'
-          ? {
-              postTitle: `[Discussion] 大家都在吹「${features[0]}」和「${features[1]}」，但对小团队来说优先级到底怎么排？`,
-              postBody: `抛个讨论：社区里「${features[0]}」「${features[1]}」出现频率都很高，但**高频 ≠ 对你当下阶段最重要**。
-
-一点背景（摘自近期讨论概括）：  
-${summaryHint.slice(0, 160)}${report.summary.length > 160 ? '…' : ''}
-
-**我困惑的点**  
-• 如果首页/落地页只能强调一个，你会押「${features[0]}」还是「${features[1]}」？为什么？  
-• ${brands.slice(0, 3).join(' / ')} 这几家，你们觉得谁在叙事上把这两个点绑得最自然？
-
-**互动**  
-欢迎用「行业 + 团队人数 + 你选的优先级」格式回复，我后面整理成对照表（会 **编辑** 到主楼）。
-
-**TL;DR：** 求优先级，不求站队吵架。`,
-              suggestedSubreddit: 'r/SaaS',
-            }
-          : {
-              postTitle: `[Discussion] Everyone praises “${features[0]}” and “${features[1]}” — what would *you* prioritize on a tiny team?`,
-              postBody: `Hot take request: both “${features[0]}” and “${features[1]}” show up constantly, but frequency ≠ what actually moves the needle for your stage.
-
-Quick context from what people are saying lately:  
-${summaryHint.slice(0, 160)}${report.summary.length > 160 ? '…' : ''}
-
-**What I’m stuck on**  
-• If your landing page can only hero *one*, which wins for you — and why?  
-• Among ${brands.slice(0, 3).join(' / ')}, who ties the story together best?
-
-**Drop answers like:** industry + headcount + your priority order. I’ll **edit** a summary table into the post if this gets replies.
-
-**TL;DR:** Prioritization debate, not brand war.`,
-              suggestedSubreddit: 'r/SaaS',
-            },
-    });
-  }
-
-  if (brands.length) {
-    ideas.push({
-      title:
-        lang === 'zh'
-          ? `高频被提及品牌观察：${brands.slice(0, 3).join(' / ')}`
-          : `Brands in the conversation: ${brands.slice(0, 3).join(' / ')}`,
-      angle:
-        lang === 'zh'
-          ? `不做简单榜单，而分析各品牌在讨论里对应的需求标签、用户心智与可借鉴策略。`
-          : `Skip a leaderboard — map brands to demand tags, mental models, and tactics to borrow.`,
-      basedOn: brands.slice(0, 3),
-      content:
-        lang === 'zh'
-          ? {
-              postTitle: `客观问一句：${brands.slice(0, 3).join(' / ')} 在解决「${pains[0] || '核心痛点'}」这件事上，各自强项/短板是啥？`,
-              postBody: `不想做营销号对比表，只想从**真实使用场景**聊聊：当大家提到 ${brands.slice(0, 3).join('、')} 时，到底在解决什么问题？
-
-**我观察到的关键词**  
-和「${words[0] || '讨论里常出现的词'}」、以及「${features[0] || '被夸的特征'}」经常同框出现。
-
-**请你按这个格式回（越具体越好）**  
-• 用过哪家 / 多久  
-• 最爽的一点 & 最想骂的一点  
-• 如果你是竞品，会抄哪条叙事、会避开哪个坑
-
-**TL;DR：** 求体验不谈信仰；有数据更好。
-
-**编辑：** 若涉及具体报价请打码，避免违反 sub 规则。`,
-              suggestedSubreddit: 'r/B2BSaaS',
-            }
-          : {
-              postTitle: `Honest thread: ${brands.slice(0, 3).join(' vs ')} — what actually worked for “${pains[0] || 'your main pain'}”?`,
-              postBody: `Trying to keep this non-shill. When people mention ${brands.slice(0, 3).join(', ')}, what job are they hiring those tools for?
-
-Signals I’m seeing cluster with “${words[0] || 'common terms'}” and praise around “${features[0] || 'praised traits'}”.
-
-**Reply template (the more specific the better)**  
-• Which product + rough tenure  
-• Best part / worst part  
-• If you were competing, what narrative would you steal vs avoid
-
-**TL;DR:** Experience > tribalism. Numbers welcome.
-
-**Edit:** Redact pricing if needed to stay within sub rules.`,
-              suggestedSubreddit: 'r/B2BSaaS',
-            },
-    });
-  }
-
-  if (words.length) {
-    ideas.push({
-      title:
-        lang === 'zh'
-          ? `从高频词「${words[0]}」出发：做一篇能转化的长文`
-          : `Start from “${words[0]}”: a post built to convert`,
-      angle:
-        lang === 'zh'
-          ? `把高频词转成内容漏斗：问题定义 → 方案对比 → 场景推荐 → 风险 → 行动建议。`
-          : `Turn the term into a funnel: problem → compare → scenarios → risks → actions.`,
-      basedOn: words.slice(0, 3),
-      content:
-        lang === 'zh'
-          ? {
-              postTitle: `求助：想把「${words[0]}」/${words[1] || '…'}/${words[2] || '…'} 这几个点讲清楚，又怕写成软文——怎么写才像真人？`,
-              postBody: `最近在整理社区讨论，发现「${words[0]}」老是和 ${brands[0] || '某些品牌'}、以及「${pains[0] || '典型痛点'}」一起出现。
-
-**我想讨论的是**  
-不是堆功能介绍，而是：**读者到底在哪个阶段会搜 / 会焦虑这些词**？
-
-**正文结构草案（欢迎拍砖）**  
-1) 先把问题定义清楚：${words[0]} 在你行业里到底指什么  
-2) 对比几种常见路径（轻量 / 标准 / 重）  
-3) 哪些坑和「${pains[0] || '风险'}」强相关  
-4) 给一条可执行的下一步（试用/迁移/协作）
-
-**TL;DR：** 想写成「像 sub 里长帖」那种，不是 landing page。
-
-**编辑：** 会按评论调整用词，避免广告感。`,
-              suggestedSubreddit: 'r/marketing',
-            }
-          : {
-              postTitle: `Help me write a *human* post about “${words[0]}” (and “${words[1] || '…'}”) without sounding like a landing page`,
-              postBody: `Aggregating threads — “${words[0]}” keeps clustering with ${brands[0] || 'certain brands'} and “${pains[0] || 'the usual pain'}”.
-
-**What I want to discuss**  
-Not feature soup — *when* people actually search or stress about these terms in their workflow.
-
-**Draft outline (tear it apart)**  
-1) Define what “${words[0]}” means in your context  
-2) Compare a few paths (light vs standard vs heavy)  
-3) Risks tied to “${pains[0] || 'failure modes'}”  
-4) One concrete next step (trial / migration / collaboration norms)
-
-**TL;DR:** Trying to sound like a real long-form sub post, not marketing.
-
-**Edit:** Will revise wording based on feedback.`,
-              suggestedSubreddit: 'r/marketing',
-            },
-    });
-  }
-
-  if (pains.length && brands.length) {
-    ideas.push({
-      title:
-        lang === 'zh'
-          ? `用户痛点 × 品牌讨论：如何找到下一篇高互动选题`
-          : `Pain × brand threads: finding your next high-engagement topic`,
-      angle:
-        lang === 'zh'
-          ? `将痛点与品牌交叉，定位「高讨论、低满足」的空白主题，指导排期。`
-          : `Cross pains with brands to spot high-talk, low-answer gaps for the calendar.`,
-      basedOn: [pains[0], brands[0]],
-      content:
-        lang === 'zh'
-          ? {
-              postTitle: `「${pains[0]}」+「${brands[0]}」这格子里，是不是讨论很热但高质量答案很少？你们缺啥？`,
-              postBody: `想做个**矩阵向**的讨论：一边是痛点（我这边最关心「${pains[0]}」），一边是品牌/产品线（比如「${brands[0]}」）。
-
-社区里经常各说各话：有人夸「${features[0] || '某些优点'}」，但同一批人还在抱怨「${pains[0]}」没解决——我好奇这是不是典型的「热但浅」。
-
-**想收集的评论**  
-• 你觉得现有回答缺的是：对比数据？流程？还是权限/协作细节？  
-• 如果只能让我写一篇深度帖，你最想先看哪类内容（算账 / 迁移 / 权限）？
-
-**TL;DR：** 用评论告诉我「空白答案」长什么样，我整理后 **编辑** 主楼。
-
-**编辑：** 不引战，只聊信息缺口。`,
-              suggestedSubreddit: 'r/CustomerSuccess',
-            }
-          : {
-              postTitle: `Is the “${pains[0]}” + “${brands[0]}” thread hot but shallow? What answer is still missing?`,
-              postBody: `Matrix-style prompt: pain axis (“${pains[0]}”) vs brand/product line (“${brands[0]}”).
-
-People praise “${features[0] || 'certain strengths'}” but still say “${pains[0]}” isn’t solved — sounds like a high-talk, low-depth cell.
-
-**What I want from comments**  
-• What’s missing in existing answers: data, playbooks, permissions reality?  
-• If you could demand one deep post, would it be ROI, migration, or governance?
-
-**TL;DR:** Tell me what “good enough” looks like — I’ll **edit** a summary into the OP.
-
-**Edit:** Not trying to start a flame war — info gaps only.`,
-              suggestedSubreddit: 'r/CustomerSuccess',
-            },
-    });
-  }
-
-  return ideas.slice(0, 6);
-}
-
 const translations = {
   en: {
     title: "Reddit Analyzer",
@@ -578,6 +249,9 @@ const translations = {
     placeholder: "Paste your Reddit posts and comments here...",
     analyzeBtn: "Analyze Data",
     analyzingBtn: "Analyzing Data...",
+    aiProviderLabel: "AI model",
+    aiProviderGemini: "Gemini",
+    aiProviderMinimax: "MiniMax 2.7",
     reportTitle: "Analysis Report",
     exportBtn: "Export to Notion",
     summary: "Summary of Discussions",
@@ -598,6 +272,13 @@ const translations = {
     contentTitle: "Topics & Reddit-style posts",
     contentEmpty: "Analyze data first, or select a history record with report.",
     regenerate: "Regenerate Ideas",
+    contentToneLabel: "Draft tone",
+    contentToneHint:
+      "Applies to every card below: curious doubt, straight ask, “what worked for me,” or vent — typical Reddit moods.",
+    toneCurious: "Curious / 疑惑",
+    toneQuestion: "Question / 提问",
+    toneRecommend: "Recommend / 推荐",
+    toneRant: "Rant / 吐槽",
     basedOnReport: "Generated from current report",
     basedOnHistory: "Generated from selected history report",
     settingsHelp: "To export to Notion, you need an Internal Integration Token and the ID of the database you want to export to. The integration must be added to the database via the \"Share\" menu.",
@@ -637,7 +318,7 @@ const translations = {
     monitorCategory: "Type",
     monitorComments: "Comments (top excerpt)",
     monitorBody: "Post body",
-    monitorUseGemini: "AI labels & user intents (needs GEMINI_API_KEY on server)",
+    monitorUseGemini: "AI labels & user intents (uses selected AI model on server)",
     monitorLimit: "Max posts",
     monitorFilterAll: "All",
     monitorEmpty:
@@ -648,6 +329,7 @@ const translations = {
       "For Reddit competitive listening, use this page: add target subreddits, fetch posts, then use filters and Analyze. Instagram pilot accounts are under Competitive intel.",
     monitorSourceHeuristic: "Rules",
     monitorSourceGemini: "Gemini",
+    monitorSourceMinimax: "MiniMax 2.7",
     toastMonitorOk: "Feed updated",
     toastMonitorFail: "Fetch failed",
     monitorModeNew: "Latest (/new)",
@@ -677,6 +359,8 @@ const translations = {
     competitiveFilterNoMatch: "No posts match the filters.",
     competitiveTagCollab: "Collab",
     competitiveTagRepost: "Repost",
+    competitiveHistoryTitle: "Sync history",
+    competitiveHistoryEmpty: "No sync history yet.",
     competitiveCalendarTitle: "Original posts calendar (dots)",
     competitiveCalendarPrev: "Prev",
     competitiveCalendarNext: "Next",
@@ -732,6 +416,9 @@ const translations = {
     placeholder: "在此粘贴您的 Reddit 帖子和评论...",
     analyzeBtn: "分析数据",
     analyzingBtn: "正在分析数据...",
+    aiProviderLabel: "AI 模型",
+    aiProviderGemini: "Gemini",
+    aiProviderMinimax: "MiniMax 2.7",
     reportTitle: "分析报告",
     exportBtn: "导出至 Notion",
     summary: "讨论内容总结",
@@ -752,6 +439,12 @@ const translations = {
     contentTitle: "选题与 Reddit 发帖草案",
     contentEmpty: "请先完成一次分析，或在历史页选择一条有报告的数据。",
     regenerate: "重新生成",
+    contentToneLabel: "发帖语气",
+    contentToneHint: "影响下方所有选题与正文草案：疑惑、提问、推荐、吐槽等常见 Reddit 情绪向。",
+    toneCurious: "疑惑（拿不准、求拍醒）",
+    toneQuestion: "提问（求助、真诚发问）",
+    toneRecommend: "推荐（过来人、避坑分享）",
+    toneRant: "吐槽（发泄、仍求干货）",
     basedOnReport: "基于当前分析报告生成",
     basedOnHistory: "基于选中历史报告生成",
     settingsHelp: "要导出到 Notion，您需要一个内部集成令牌 (Integration Token) 以及目标数据库的 ID。必须通过“共享”菜单将集成添加到该数据库。",
@@ -791,7 +484,7 @@ const translations = {
     monitorCategory: "类别",
     monitorComments: "评论摘录",
     monitorBody: "帖子正文",
-    monitorUseGemini: "使用 AI 标注情绪/类别与用户倾向（需服务端 GEMINI_API_KEY）",
+    monitorUseGemini: "使用 AI 标注情绪/类别与用户倾向（使用当前选择的服务端模型）",
     monitorLimit: "最多帖数",
     monitorFilterAll: "全部",
     monitorEmpty:
@@ -802,6 +495,7 @@ const translations = {
       "Reddit 侧竞品声量请在本页完成：添加目标版块 → 拉取帖子 → 用筛选与「去分析」。Instagram 试点账号在「竞品监控」页查看。",
     monitorSourceHeuristic: "规则",
     monitorSourceGemini: "Gemini",
+    monitorSourceMinimax: "MiniMax 2.7",
     toastMonitorOk: "已更新列表",
     toastMonitorFail: "拉取失败",
     monitorModeNew: "最新帖 (/new)",
@@ -831,6 +525,8 @@ const translations = {
     competitiveFilterNoMatch: "当前筛选下没有符合条件的帖子。",
     competitiveTagCollab: "协作",
     competitiveTagRepost: "转发",
+    competitiveHistoryTitle: "历史抓取记录",
+    competitiveHistoryEmpty: "暂无历史抓取记录。",
     competitiveCalendarTitle: "原创发帖日历（彩色点）",
     competitiveCalendarPrev: "上月",
     competitiveCalendarNext: "下月",
@@ -885,6 +581,15 @@ export default function App() {
   const [redditUrl, setRedditUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  const [aiProvider, setAiProvider] = useState<AiProvider>(() => {
+    try {
+      const raw = localStorage.getItem('redditAiProvider');
+      if (raw === 'gemini' || raw === 'minimax') return raw;
+    } catch {
+      /* ignore */
+    }
+    return 'gemini';
+  });
   const [report, setReport] = useState<Report | null>(null);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>(() => {
     try {
@@ -902,6 +607,16 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [contentIdeas, setContentIdeas] = useState<ContentIdea[]>([]);
+  const [contentSubSuggesting, setContentSubSuggesting] = useState(false);
+  const [contentTone, setContentTone] = useState<ContentToneId>(() => {
+    try {
+      const raw = localStorage.getItem('redditContentTone');
+      if (raw && CONTENT_TONE_IDS.includes(raw as ContentToneId)) return raw as ContentToneId;
+    } catch {
+      /* ignore */
+    }
+    return DEFAULT_CONTENT_TONE;
+  });
   const [monitorSubreddits, setMonitorSubreddits] = useState<string[]>(() => {
     try {
       const j = localStorage.getItem('monitorSubreddits');
@@ -930,6 +645,7 @@ export default function App() {
   const [monitorDay, setMonitorDay] = useState(() => localDateYmd());
   const monitorSubredditsRef = useRef(monitorSubreddits);
   monitorSubredditsRef.current = monitorSubreddits;
+  const contentSuggestSeqRef = useRef(0);
   /** 从板块监控「去分析」带入；分析成功写入历史后清空 */
   const [pendingMonitorMeta, setPendingMonitorMeta] = useState<{ label: string } | null>(null);
   const [competitiveCache, setCompetitiveCache] = useState<Record<string, unknown> | null>(null);
@@ -1040,14 +756,74 @@ export default function App() {
   }, [competitiveCache]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('redditAiProvider', aiProvider);
+    } catch {
+      /* ignore */
+    }
+  }, [aiProvider]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('redditContentTone', contentTone);
+    } catch {
+      /* ignore */
+    }
+  }, [contentTone]);
+
+  const withAiSuggestedSubreddits = async (ideas: ContentIdea[]): Promise<ContentIdea[]> => {
+    if (ideas.length === 0) return ideas;
+    const reqSeq = ++contentSuggestSeqRef.current;
+    setContentSubSuggesting(true);
+    try {
+      const res = await fetch('/api/content/subreddits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          aiProvider,
+          language,
+          ideas: ideas.map((x) => ({
+            title: x.title,
+            angle: x.angle,
+            postTitle: x.content.postTitle,
+            postBody: x.content.postBody,
+            currentSuggestedSubreddit: x.content.suggestedSubreddit || '',
+          })),
+        }),
+      });
+      const data = (await res.json()) as { success?: boolean; suggestedSubreddits?: string[]; error?: string };
+      if (!res.ok || data.success === false || !Array.isArray(data.suggestedSubreddits)) {
+        throw new Error(data.error || 'Subreddit suggestion failed');
+      }
+      if (reqSeq !== contentSuggestSeqRef.current) return ideas;
+      return ideas.map((idea, idx) => ({
+        ...idea,
+        content: {
+          ...idea.content,
+          suggestedSubreddit: data.suggestedSubreddits?.[idx] || idea.content.suggestedSubreddit,
+        },
+      }));
+    } catch (error: any) {
+      console.warn('[content] subreddit suggestion fallback:', error?.message || error);
+      return ideas;
+    } finally {
+      if (reqSeq === contentSuggestSeqRef.current) {
+        setContentSubSuggesting(false);
+      }
+    }
+  };
+
+  useEffect(() => {
     const selected = historyRecords.find((x) => x.id === selectedHistoryId) || null;
     const src = report || selected?.report || null;
     if (!src) {
       setContentIdeas([]);
       return;
     }
-    setContentIdeas(buildIdeasWithDrafts(src, language));
-  }, [language, report, selectedHistoryId, historyRecords]);
+    const baseIdeas = buildIdeasWithDrafts(src, language, contentTone);
+    setContentIdeas(baseIdeas);
+    withAiSuggestedSubreddits(baseIdeas).then((nextIdeas) => setContentIdeas(nextIdeas));
+  }, [language, report, selectedHistoryId, historyRecords, contentTone, aiProvider]);
 
   const persistHistory = (nextRecords: HistoryRecord[]) => {
     setHistoryRecords(nextRecords);
@@ -1086,12 +862,15 @@ export default function App() {
     });
   };
 
-  const generateContentIdeas = (baseReport: Report | null) => {
+  const generateContentIdeas = async (baseReport: Report | null) => {
     if (!baseReport) {
       setContentIdeas([]);
       return;
     }
-    setContentIdeas(buildIdeasWithDrafts(baseReport, language));
+    const baseIdeas = buildIdeasWithDrafts(baseReport, language, contentTone);
+    setContentIdeas(baseIdeas);
+    const nextIdeas = await withAiSuggestedSubreddits(baseIdeas);
+    setContentIdeas(nextIdeas);
   };
 
   const toAnalysisText = (raw: string): string => {
@@ -1210,61 +989,35 @@ export default function App() {
 
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `
-        Analyze the following Reddit dataset (posts and comments) and provide a structured report based on this framework:
-        1. Summary: Summarize the discussions in these posts and comments.
-        2. Pain Points: Main user pain points, most frequent complaints or issues.
-        3. Praised Features: Product features users recommend or praise (functionality, design, appearance, etc.).
-        4. Mentioned Brands: Most frequently mentioned products or brand names.
-        5. High Frequency Words: Most commonly used vocabulary or high-frequency words when describing products and issues.
-
-        IMPORTANT: The final output MUST be in ${language === 'zh' ? 'Simplified Chinese' : 'English'}.
-
-        Dataset:
-        ${normalizedInput.substring(0, 30000)} // Truncating to avoid token limits if too large
-      `;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: { type: Type.STRING, description: "Summary of discussions" },
-              painPoints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Main user pain points" },
-              praisedFeatures: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Praised product features" },
-              mentionedBrands: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Mentioned brands or products" },
-              highFrequencyWords: { type: Type.ARRAY, items: { type: Type.STRING }, description: "High frequency words" }
-            },
-            required: ["summary", "painPoints", "praisedFeatures", "mentionedBrands", "highFrequencyWords"]
-          }
-        }
-      });
-
-      const resultText = response.text;
-      if (resultText) {
-        const parsedReport = JSON.parse(resultText) as Report;
-        setReport(parsedReport);
-        const fromMonitor = Boolean(pendingMonitorMeta);
-        const hasUrl = Boolean(redditUrl.trim());
-        const record: HistoryRecord = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          createdAt: new Date().toISOString(),
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          datasetText: normalizedInput,
           language,
-          sourceType: fromMonitor ? 'monitor' : hasUrl ? 'link' : 'file_or_paste',
-          sourceLabel: fromMonitor ? pendingMonitorMeta!.label : hasUrl ? redditUrl.trim() : 'manual_input',
-          inputText,
-          report: parsedReport,
-        };
-        saveHistoryRecord(record);
-        setPendingMonitorMeta(null);
-        toast.success(t.toastAnalyzeSuccess);
-      } else {
-        throw new Error("No response from AI");
+          aiProvider,
+        }),
+      });
+      const data = (await response.json()) as { success?: boolean; report?: Report; error?: string };
+      if (!response.ok || !data.report) {
+        throw new Error(data.error || 'No response from AI');
       }
+      const parsedReport = data.report;
+      setReport(parsedReport);
+      const fromMonitor = Boolean(pendingMonitorMeta);
+      const hasUrl = Boolean(redditUrl.trim());
+      const record: HistoryRecord = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: new Date().toISOString(),
+        language,
+        sourceType: fromMonitor ? 'monitor' : hasUrl ? 'link' : 'file_or_paste',
+        sourceLabel: fromMonitor ? pendingMonitorMeta!.label : hasUrl ? redditUrl.trim() : 'manual_input',
+        inputText,
+        report: parsedReport,
+      };
+      saveHistoryRecord(record);
+      setPendingMonitorMeta(null);
+      toast.success(t.toastAnalyzeSuccess);
     } catch (error: any) {
       console.error(error);
       toast.error(`${t.toastAnalyzeFail}: ${error.message}`);
@@ -1348,6 +1101,7 @@ export default function App() {
         subreddit: subs[0],
         limit: monitorLimit,
         useGemini: monitorUseGemini,
+        aiProvider,
         mode: monitorMode,
       };
       if (monitorMode === 'day') {
@@ -1788,6 +1542,18 @@ export default function App() {
                     className="w-full flex-1 min-h-[200px] p-4 border border-stone-200 rounded-xl focus:ring-2 focus:ring-reddit-500/40 focus:border-reddit-500 resize-none text-sm bg-white shadow-sm"
                   />
 
+                  <label className="shrink-0 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-700">
+                    <span className="font-medium">{t.aiProviderLabel}</span>
+                    <select
+                      value={aiProvider}
+                      onChange={(e) => setAiProvider(e.target.value as AiProvider)}
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-reddit-500 focus:outline-none focus:ring-2 focus:ring-reddit-500/20"
+                    >
+                      <option value="gemini">{t.aiProviderGemini}</option>
+                      <option value="minimax">{t.aiProviderMinimax}</option>
+                    </select>
+                  </label>
+
                   <button
                     type="button"
                     onClick={handleLoadDemo}
@@ -1883,19 +1649,41 @@ export default function App() {
         ) : activePage === 'content' ? (
           <section className="flex-1 p-6 lg:p-8 overflow-y-auto bg-white">
             <div className="max-w-4xl mx-auto space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <h2 className="text-2xl font-semibold tracking-tight">{t.contentTitle}</h2>
-                <button
-                  onClick={() => generateContentIdeas(contentSourceReport)}
-                  className="px-4 py-2 bg-reddit-700 hover:bg-reddit-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-reddit-900/15 ring-1 ring-reddit-500/25"
-                >
-                  {t.regenerate}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-stone-700">
+                    <span className="whitespace-nowrap font-medium">{t.contentToneLabel}</span>
+                    <select
+                      value={contentTone}
+                      onChange={(e) => setContentTone(e.target.value as ContentToneId)}
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-reddit-500 focus:outline-none focus:ring-2 focus:ring-reddit-500/20"
+                    >
+                      <option value="curious">{t.toneCurious}</option>
+                      <option value="question">{t.toneQuestion}</option>
+                      <option value="recommend">{t.toneRecommend}</option>
+                      <option value="rant">{t.toneRant}</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => generateContentIdeas(contentSourceReport)}
+                    className="px-4 py-2 bg-reddit-700 hover:bg-reddit-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-reddit-900/15 ring-1 ring-reddit-500/25"
+                  >
+                    {t.regenerate}
+                  </button>
+                </div>
               </div>
+              <p className="text-xs text-stone-500">{t.contentToneHint}</p>
 
               <div className="text-sm text-stone-500">
                 {report ? t.basedOnReport : selectedHistory ? t.basedOnHistory : t.contentEmpty}
               </div>
+              {contentSubSuggesting ? (
+                <div className="text-xs text-stone-500">
+                  {language === 'zh' ? '正在用 AI 匹配更合适的 subreddit…' : 'Matching better subreddits with AI…'}
+                </div>
+              ) : null}
 
               {!contentSourceReport ? (
                 <div className="h-[260px] flex items-center justify-center text-stone-400 border-2 border-dashed border-stone-200 rounded-2xl">
@@ -2165,12 +1953,16 @@ export default function App() {
                           </span>
                           <span
                             className={`text-xs px-2 py-1 rounded-md border shadow-sm ${
-                              p.classificationSource === 'gemini'
+                              p.classificationSource !== 'heuristic'
                                 ? 'bg-violet-50 text-violet-900 border-violet-200'
                                 : 'bg-stone-100 text-stone-600 border-stone-200'
                             }`}
                           >
-                            {p.classificationSource === 'gemini' ? t.monitorSourceGemini : t.monitorSourceHeuristic}
+                            {p.classificationSource === 'minimax'
+                              ? t.monitorSourceMinimax
+                              : p.classificationSource === 'gemini'
+                                ? t.monitorSourceGemini
+                                : t.monitorSourceHeuristic}
                           </span>
                         </div>
                       </div>
@@ -2242,7 +2034,7 @@ export default function App() {
                               </span>
                               <span className="text-stone-400 font-normal">
                                 {' '}
-                                — {p.classificationSource === 'gemini' ? t.monitorIntentByAi : t.monitorIntentByKeyword}
+                                — {p.classificationSource !== 'heuristic' ? t.monitorIntentByAi : t.monitorIntentByKeyword}
                               </span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -2344,6 +2136,37 @@ export default function App() {
                       ? new Date(String(competitiveCache.updatedAt)).toLocaleString()
                       : '—'}
                   </p>
+
+                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+                    <h3 className="text-sm font-semibold text-stone-800 mb-2">{t.competitiveHistoryTitle}</h3>
+                    {(() => {
+                      const history = Array.isArray((competitiveCache as any)?.history)
+                        ? ((competitiveCache as any).history as Array<any>)
+                        : [];
+                      if (history.length === 0) {
+                        return <p className="text-xs text-stone-400">{t.competitiveHistoryEmpty}</p>;
+                      }
+                      return (
+                        <div className="max-h-52 overflow-y-auto divide-y divide-stone-100">
+                          {history.map((h, idx) => {
+                            const by = (h?.instagram?.postsByUsername || {}) as Record<string, Array<Record<string, unknown>>>;
+                            const total = Object.values(by).reduce((n, rows) => n + (Array.isArray(rows) ? rows.length : 0), 0);
+                            const hasError = typeof h?.instagram?.error === 'string' && h.instagram.error.length > 0;
+                            return (
+                              <div key={`${h?.updatedAt || 'row'}-${idx}`} className="py-2 text-xs flex items-center justify-between gap-3">
+                                <div className="text-stone-700">
+                                  {h?.updatedAt ? new Date(String(h.updatedAt)).toLocaleString() : '—'}
+                                </div>
+                                <div className={`font-medium ${hasError ? 'text-red-700' : 'text-emerald-700'}`}>
+                                  {hasError ? (language === 'zh' ? '失败' : 'Failed') : `${total} posts`}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
 
                   <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-md ring-1 ring-insta-100/50 border-t-4 border-t-insta-500">
                     <h3 className="text-sm font-semibold text-insta-950 mb-3 flex items-center gap-2">

@@ -1,9 +1,9 @@
 /**
- * Subreddit 新帖拉取 + 评论摘录 + 情绪/类别分类（启发式 + 可选 Gemini）
+ * Subreddit 新帖拉取 + 评论摘录 + 情绪/类别分类（启发式 + 可选 AI）
  */
 
 import { ApifyClient } from "apify-client";
-import { GoogleGenAI, Type } from "@google/genai";
+import { generateJsonObject, getDefaultAiProvider, type AiProvider } from "./llm.js";
 import { fetchRedditApiJson } from "./redditLinkConvert.js";
 
 /** 与 Instagram 竞品共用 APIFY_TOKEN；默认 trudax/reddit-scraper-lite（按 Apify 用量计费） */
@@ -49,7 +49,7 @@ export interface MonitoredPost {
   comments: MonitoredComment[];
   emotion: EmotionLabel;
   category: CategoryLabel;
-  classificationSource: "heuristic" | "gemini";
+  classificationSource: "heuristic" | AiProvider;
   intentMarks: UserIntentMarks;
 }
 
@@ -61,7 +61,47 @@ export function normalizeSubreddit(raw: string): string {
   return s;
 }
 
-async function runRedditApifyDatasetForSub(sub: string, maxPostCount: number): Promise<Record<string, unknown>[]> {
+/** 与 Dataset 中帖 id、评论 parentId 对齐（统一为 t3_xxx） */
+function normalizeT3Id(id: unknown): string {
+  const s = String(id ?? "").trim();
+  if (!s) return "";
+  if (s.startsWith("t3_")) return s;
+  return `t3_${s.replace(/^t3_?/i, "")}`;
+}
+
+const APIFY_COMMENTS_PER_POST_CAP = 40;
+
+function buildCommentMapFromApifyItems(items: Record<string, unknown>[]): Map<string, MonitoredComment[]> {
+  const map = new Map<string, MonitoredComment[]>();
+  for (const row of items) {
+    if (String(row.dataType) !== "comment") continue;
+    const parentRaw = row.parentId ?? row.parent_id;
+    const parentId = normalizeT3Id(parentRaw);
+    if (!parentId.startsWith("t3_")) continue;
+    const body = String(row.body ?? "").trim();
+    if (!body || body === "[deleted]" || body === "[removed]") continue;
+    const up = row.upVotes;
+    const sc = row.score;
+    const score =
+      typeof up === "number" ? up : typeof sc === "number" ? sc : Number(up ?? sc) || 0;
+    const mc: MonitoredComment = {
+      id: String(row.id ?? row.parsedId ?? ""),
+      body: body.slice(0, 4000),
+      author: String(row.username ?? row.author ?? "[deleted]"),
+      score,
+    };
+    const list = map.get(parentId) ?? [];
+    if (list.length >= APIFY_COMMENTS_PER_POST_CAP) continue;
+    list.push(mc);
+    map.set(parentId, list);
+  }
+  return map;
+}
+
+async function runRedditApifyDatasetForSub(
+  sub: string,
+  maxPostCount: number
+): Promise<{ items: Record<string, unknown>[]; commentsByPostId: Map<string, MonitoredComment[]> }> {
   const token = process.env.APIFY_TOKEN?.trim();
   if (!token) {
     throw new Error("缺少 APIFY_TOKEN：版块监控已改为通过 Apify 拉取 Reddit，请与 Instagram 竞品共用同一 Token。");
@@ -71,11 +111,15 @@ async function runRedditApifyDatasetForSub(sub: string, maxPostCount: number): P
   const input: Record<string, unknown> = {
     startUrls: [{ url: `https://www.reddit.com/r/${encodeURIComponent(sub)}/new/` }],
     maxPostCount,
+    maxComments: APIFY_COMMENTS_PER_POST_CAP,
   };
   const run = await client.actor(actorId).call(input);
-  if (!run.defaultDatasetId) return [];
+  if (!run.defaultDatasetId) {
+    return { items: [], commentsByPostId: new Map() };
+  }
   const { items } = await client.dataset(run.defaultDatasetId).listItems({ limit: 10000 });
-  return (items ?? []) as Record<string, unknown>[];
+  const list = (items ?? []) as Record<string, unknown>[];
+  return { items: list, commentsByPostId: buildCommentMapFromApifyItems(list) };
 }
 
 function apifyPostBelongsToSub(raw: Record<string, unknown>, sub: string): boolean {
@@ -220,7 +264,7 @@ export function monitoredPostToAnalysisJson(post: MonitoredPost): string {
 async function buildMonitoredPostFromT3(
   p: any,
   sub: string,
-  options: { useGemini?: boolean; delayMs?: number }
+  options: { useGemini?: boolean; aiProvider?: AiProvider; delayMs?: number }
 ): Promise<MonitoredPost | null> {
   const permalink = p.permalink as string;
   if (!permalink) return null;
@@ -241,7 +285,7 @@ async function buildMonitoredPostFromT3(
   const body = (p.selftext || "").slice(0, 8000);
   let emotion: EmotionLabel;
   let category: CategoryLabel;
-  let classificationSource: "heuristic" | "gemini" = "heuristic";
+  let classificationSource: "heuristic" | AiProvider = "heuristic";
 
   const h = classifyHeuristic(title, body, comments);
   emotion = h.emotion;
@@ -250,11 +294,12 @@ async function buildMonitoredPostFromT3(
   let intentMarks = extractIntentMarks(title, body, comments);
 
   if (options.useGemini) {
-    const g = await classifyGemini(title, body, comments);
+    const provider = options.aiProvider ?? getDefaultAiProvider();
+    const g = await classifyAi(title, body, comments, provider);
     if (g) {
       emotion = g.emotion;
       category = g.category;
-      classificationSource = "gemini";
+      classificationSource = provider;
       intentMarks = g.intentMarks;
     }
   }
@@ -291,16 +336,18 @@ async function collectT3ForDayRange(
   maxPosts: number
 ): Promise<any[]> {
   if (useApifyMonitor()) {
-    const rows = await runRedditApifyDatasetForSub(sub, Math.min(200, maxPosts * 10));
-    const collected: Record<string, unknown>[] = [];
-    for (const row of rows) {
+    const { items, commentsByPostId } = await runRedditApifyDatasetForSub(sub, Math.min(200, maxPosts * 10));
+    const collected: Array<{ post: Record<string, unknown>; comments: MonitoredComment[] }> = [];
+    for (const row of items) {
       if (!row || typeof row !== "object") continue;
       const o = row as Record<string, unknown>;
       if (String(o.dataType) !== "post") continue;
       if (!apifyPostBelongsToSub(o, sub)) continue;
       const t = new Date(String(o.createdAt ?? 0)).getTime();
       if (t >= startMs && t <= endMs) {
-        collected.push(o);
+        const pid = normalizeT3Id(o.id ?? o.parsedId);
+        const comments = (commentsByPostId.get(pid) ?? []).slice(0, APIFY_COMMENTS_PER_POST_CAP);
+        collected.push({ post: o, comments });
         if (collected.length >= maxPosts) return collected;
       }
     }
@@ -420,14 +467,12 @@ export function classifyHeuristic(
   };
 }
 
-async function classifyGemini(
+async function classifyAi(
   title: string,
   body: string,
-  comments: MonitoredComment[]
+  comments: MonitoredComment[],
+  provider: AiProvider
 ): Promise<{ emotion: EmotionLabel; category: CategoryLabel; intentMarks: UserIntentMarks } | null> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-
   const sample = comments
     .slice(0, 12)
     .map((c) => c.body.slice(0, 500))
@@ -449,29 +494,23 @@ async function classifyGemini(
 评论摘录：${sample.slice(0, 4500)}`;
 
   try {
-    const ai = new GoogleGenAI({ apiKey: key });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            emotion: { type: Type.STRING },
-            category: { type: Type.STRING },
-            likes: { type: Type.ARRAY, items: { type: Type.STRING } },
-            dislikes: { type: Type.ARRAY, items: { type: Type.STRING } },
-            requests: { type: Type.ARRAY, items: { type: Type.STRING } },
-            complaints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ["emotion", "category", "likes", "dislikes", "requests", "complaints"],
+    const parsed = (await generateJsonObject(
+      prompt,
+      {
+        type: "object",
+        properties: {
+          emotion: { type: "string" },
+          category: { type: "string" },
+          likes: { type: "array", items: { type: "string" } },
+          dislikes: { type: "array", items: { type: "string" } },
+          requests: { type: "array", items: { type: "string" } },
+          complaints: { type: "array", items: { type: "string" } },
         },
+        required: ["emotion", "category", "likes", "dislikes", "requests", "complaints"],
       },
-    });
-    const raw = response.text;
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as {
+      provider,
+      { geminiModel: "gemini-2.0-flash" }
+    )) as {
       emotion?: string;
       category?: string;
       likes?: unknown;
@@ -489,26 +528,29 @@ async function classifyGemini(
     const intentMarks = normalizeIntentMarksFromAi(parsed);
     return { emotion, category, intentMarks };
   } catch (e) {
-    console.warn("Gemini classification failed:", e);
+    console.warn(`${provider} classification failed:`, e);
   }
   return null;
 }
 
-/** Apify Dataset 中 dataType=post 的条目 → MonitoredPost（不另拉评论线程，避免再请求 Reddit） */
+/** Apify Dataset 中 dataType=post 的条目 → MonitoredPost（评论来自同 Dataset 中 dataType=comment、parentId=t3_*） */
 async function apifyRowToMonitoredPost(
   raw: Record<string, unknown>,
   sub: string,
-  options: { useGemini?: boolean; delayMs?: number }
+  options: { useGemini?: boolean; aiProvider?: AiProvider; delayMs?: number },
+  preloadedComments?: MonitoredComment[]
 ): Promise<MonitoredPost | null> {
   if (String(raw.dataType) !== "post") return null;
   if (!apifyPostBelongsToSub(raw, sub)) return null;
 
   const title = String(raw.title ?? "").slice(0, 500);
   const body = String(raw.body ?? "").slice(0, 8000);
-  const comments: MonitoredComment[] = [];
+  const comments: MonitoredComment[] = preloadedComments
+    ? preloadedComments.slice(0, APIFY_COMMENTS_PER_POST_CAP)
+    : [];
   let emotion: EmotionLabel;
   let category: CategoryLabel;
-  let classificationSource: "heuristic" | "gemini" = "heuristic";
+  let classificationSource: "heuristic" | AiProvider = "heuristic";
 
   const h = classifyHeuristic(title, body, comments);
   emotion = h.emotion;
@@ -516,11 +558,12 @@ async function apifyRowToMonitoredPost(
   let intentMarks = extractIntentMarks(title, body, comments);
 
   if (options.useGemini) {
-    const g = await classifyGemini(title, body, comments);
+    const provider = options.aiProvider ?? getDefaultAiProvider();
+    const g = await classifyAi(title, body, comments, provider);
     if (g) {
       emotion = g.emotion;
       category = g.category;
-      classificationSource = "gemini";
+      classificationSource = provider;
       intentMarks = g.intentMarks;
     }
   }
@@ -546,7 +589,10 @@ async function apifyRowToMonitoredPost(
     createdAt,
     subreddit: String(raw.communityName ?? `r/${sub}`),
     flair: flairRaw != null && String(flairRaw).trim() ? String(flairRaw) : null,
-    numComments: typeof raw.numberOfComments === "number" ? raw.numberOfComments : 0,
+    numComments: Math.max(
+      typeof raw.numberOfComments === "number" ? raw.numberOfComments : 0,
+      comments.length
+    ),
     score: typeof raw.upVotes === "number" ? raw.upVotes : 0,
     comments,
     emotion,
@@ -559,17 +605,21 @@ async function apifyRowToMonitoredPost(
 export async function scanSubreddit(
   rawSub: string,
   limit: number,
-  options: { useGemini?: boolean; delayMs?: number } = {}
+  options: { useGemini?: boolean; aiProvider?: AiProvider; delayMs?: number } = {}
 ): Promise<{ subreddit: string; fetchedAt: string; posts: MonitoredPost[] }> {
   const sub = normalizeSubreddit(rawSub);
   const lim = Math.min(Math.max(limit || 10, 1), 25);
 
   if (useApifyMonitor()) {
-    const rows = await runRedditApifyDatasetForSub(sub, lim);
+    const { items, commentsByPostId } = await runRedditApifyDatasetForSub(sub, lim);
     const posts: MonitoredPost[] = [];
-    for (const row of rows) {
+    for (const row of items) {
       if (!row || typeof row !== "object") continue;
-      const built = await apifyRowToMonitoredPost(row, sub, options);
+      const ro = row as Record<string, unknown>;
+      if (String(ro.dataType) !== "post") continue;
+      const pid = normalizeT3Id(ro.id ?? ro.parsedId);
+      const comments = (commentsByPostId.get(pid) ?? []).slice(0, APIFY_COMMENTS_PER_POST_CAP);
+      const built = await apifyRowToMonitoredPost(ro, sub, options, comments);
       if (built) posts.push(built);
     }
     return {
@@ -614,6 +664,7 @@ export async function scanMultipleSubreddits(
   limit: number,
   options: {
     useGemini?: boolean;
+    aiProvider?: AiProvider;
     delayMs?: number;
     delayBetweenSubsMs?: number;
     /** 浏览器本地日 0:00～23:59.999 的毫秒时间戳；设置则只拉该日内的帖 */
@@ -653,7 +704,12 @@ export async function scanMultipleSubreddits(
       const rawPosts = await collectT3ForDayRange(sub, startMs, endMs, lim);
       for (const p of rawPosts) {
         const built = useApifyMonitor()
-          ? await apifyRowToMonitoredPost(p as Record<string, unknown>, sub, options)
+          ? await apifyRowToMonitoredPost(
+              (p as { post: Record<string, unknown>; comments: MonitoredComment[] }).post,
+              sub,
+              options,
+              (p as { post: Record<string, unknown>; comments: MonitoredComment[] }).comments
+            )
           : await buildMonitoredPostFromT3(p, sub, options);
         if (built) allPosts.push(built);
       }

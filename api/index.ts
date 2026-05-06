@@ -4,6 +4,11 @@ import { Client } from "@notionhq/client";
 import path from "path";
 import fs from "fs/promises";
 import { scanSubreddit, scanMultipleSubreddits } from "../lib/redditMonitor.js";
+import {
+  generateRedditAnalysisReport,
+  normalizeAiProvider,
+  suggestSubredditsForIdeas,
+} from "../lib/llm.js";
 /** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败 */
 
 /** 本地：.data/monitor-cache.json；Vercel 只读 /var/task，可写目录为 /tmp */
@@ -19,6 +24,49 @@ app.use(express.json({ limit: "50mb" }));
 // API routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+app.post("/api/analyze", async (req, res) => {
+  try {
+    const { datasetText, language = "en", aiProvider = "gemini" } = req.body || {};
+    const text = typeof datasetText === "string" ? datasetText.trim() : "";
+    if (!text) {
+      return res.status(400).json({ success: false, error: "Missing datasetText" });
+    }
+    const provider = normalizeAiProvider(aiProvider);
+    const report = await generateRedditAnalysisReport(
+      text,
+      language === "zh" ? "zh" : "en",
+      provider
+    );
+    res.json({ success: true, provider, report });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || "Analysis failed" });
+  }
+});
+
+app.post("/api/content/subreddits", async (req, res) => {
+  try {
+    const { ideas = [], language = "en", aiProvider = "gemini" } = req.body || {};
+    if (!Array.isArray(ideas) || ideas.length === 0) {
+      return res.status(400).json({ success: false, error: "Missing ideas[]" });
+    }
+    const provider = normalizeAiProvider(aiProvider);
+    const suggestedSubreddits = await suggestSubredditsForIdeas(
+      ideas.map((x: any) => ({
+        title: String(x?.title ?? ""),
+        angle: String(x?.angle ?? ""),
+        postTitle: String(x?.postTitle ?? ""),
+        postBody: String(x?.postBody ?? ""),
+        currentSuggestedSubreddit: String(x?.currentSuggestedSubreddit ?? ""),
+      })),
+      language === "zh" ? "zh" : "en",
+      provider
+    );
+    res.json({ success: true, provider, suggestedSubreddits });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || "Subreddit suggestion failed" });
+  }
 });
 
 app.get("/api/history", (_req, res) => {
@@ -256,6 +304,7 @@ app.post("/api/monitor/scan", async (req, res) => {
     const {
       limit = 12,
       useGemini = false,
+      aiProvider = "gemini",
       mode = "new",
       dayStartMs: rawStart,
       dayEndMs: rawEnd,
@@ -287,12 +336,16 @@ app.post("/api/monitor/scan", async (req, res) => {
 
     const opts = {
       useGemini: Boolean(useGemini),
+      aiProvider: normalizeAiProvider(aiProvider),
       dayRange: dayRange || null,
     };
     let result: Record<string, unknown>;
 
     if (subsList.length === 1 && !dayRange) {
-      const one = await scanSubreddit(subsList[0], Number(limit), { useGemini: Boolean(useGemini) });
+      const one = await scanSubreddit(subsList[0], Number(limit), {
+        useGemini: Boolean(useGemini),
+        aiProvider: normalizeAiProvider(aiProvider),
+      });
       result = {
         subreddits: [one.subreddit],
         subreddit: one.subreddit,
