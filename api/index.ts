@@ -7,6 +7,7 @@ import { scanSubreddit, scanMultipleSubreddits } from "../lib/redditMonitor.js";
 import {
   generateRedditAnalysisReport,
   generateContentIdeas,
+  generateContentFromPrompt,
   normalizeAiProvider,
   suggestSubredditsForIdeas,
 } from "../lib/llm.js";
@@ -86,6 +87,40 @@ app.post("/api/content/ideas", async (req, res) => {
     res.json({ success: true, provider, ideas });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || "Content idea generation failed" });
+  }
+});
+
+app.post("/api/content/generate", async (req, res) => {
+  try {
+    const {
+      subreddit = "",
+      instruction = "",
+      language = "en",
+      tone = "question",
+      aiProvider = "gemini",
+    } = req.body || {};
+
+    const sub = String(subreddit).trim();
+    const instr = String(instruction).trim();
+    if (!sub || !instr) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing subreddit or instruction" });
+    }
+
+    const provider = normalizeAiProvider(aiProvider);
+    const ideas = await generateContentFromPrompt(
+      sub,
+      instr,
+      language === "zh" ? "zh" : "en",
+      String(tone),
+      provider
+    );
+    res.json({ success: true, provider, ideas });
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ success: false, error: error.message || "Content generation failed" });
   }
 });
 

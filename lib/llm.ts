@@ -248,6 +248,48 @@ const TONE_DESC: Record<string, { zh: string; en: string }> = {
   },
 };
 
+const ANTI_PATTERN_RULES = `
+## NEVER do these (common AI tells that kill authenticity)
+- Never start with "So," or "Hey everyone," or "I've been thinking about..."
+- Never use transition words like "Furthermore", "Moreover", "Additionally", "In conclusion"
+- Never write perfectly balanced paragraphs with clean topic sentences
+- Never summarize your own post at the end
+- Never use "game-changer", "deep dive", "at the end of the day", "invaluable", "landscape"
+- Never use numbered lists or bullet points for emotional/personal posts
+- Never hedge every statement with "it might be worth considering"
+- Never use corporate/marketing phrases like "leverage", "synergy", "unlock potential"
+- Never start consecutive sentences with the same word
+- Never write a "perfect" post — real humans ramble, self-correct, and go off-topic`;
+
+const POST_STRUCTURE_RULES = `
+## Post structure (invisible to the reader — do NOT label these sections)
+Each postBody must follow this narrative arc naturally:
+1. HOOK (1-2 sentences): A specific, personal moment that triggered the post.
+   Examples: "just got off a call that made me question everything",
+   "ok so I've been lurking here for months and finally need to ask"
+2. CONTEXT (2-3 sentences): Minimal background — just enough so strangers get it.
+   Drop details mid-sentence like a real person would.
+3. BODY: The actual question/rant/recommendation. Include at least one of:
+   - A tangent or self-correction ("wait actually that's not quite right...")
+   - A parenthetical aside ("(my co-founder disagrees but whatever)")
+   - An incomplete thought trailed off with "..." or "idk"
+4. CLOSE: End with an open question OR a trailing thought — NEVER a summary or CTA.
+   Good: "anyone dealt with this?", "idk maybe I'm overthinking this",
+   "sorry for the wall of text lol", "curious what you all think"
+   Bad: "In summary...", "Hope this helps!", "Let me know your thoughts below!"`;
+
+const PERSONA_RULES = `
+## Persona variation (critical for authenticity)
+Each of the 6 posts must be written by a DIFFERENT persona. Internally assign:
+- Post 1: newcomer / first-time poster, slightly nervous, over-explains context
+- Post 2: experienced veteran, blunt and concise, uses community slang
+- Post 3: frustrated user who has tried everything, emotionally raw
+- Post 4: analytical thinker, includes specific numbers/dates, methodical
+- Post 5: casual lurker finally posting, self-deprecating humor, apologetic
+- Post 6: passionate advocate, genuine enthusiasm (not shill-ish), uses caps sparingly
+Each persona affects: vocabulary, sentence length, paragraph count, punctuation style,
+level of formality, and emotional register. Do NOT mention or label the persona.`;
+
 export async function generateContentIdeas(
   report: RedditAnalysisReport,
   language: "en" | "zh",
@@ -273,6 +315,9 @@ You are a Reddit content strategist. Based on this Reddit community analysis, ge
 
 ## Tone for ALL 6 ideas
 ${toneDesc}
+${ANTI_PATTERN_RULES}
+${POST_STRUCTURE_RULES}
+${PERSONA_RULES}
 
 ## Critical Rules
 1. **Match the domain exactly.** Infer the community topic (adult toys, fitness, gaming, cooking, SaaS, etc.) purely from the analysis above and write accordingly. Never import irrelevant jargon (e.g. "migration", "permissions", "KPI", "landing page", "team bandwidth" in an adult-toys context).
@@ -382,4 +427,111 @@ ${JSON.stringify(
   const normalized = arr.map((x) => normalizeSubredditName(x)).filter(Boolean);
   while (normalized.length < ideas.length) normalized.push("r/AskReddit");
   return normalized.slice(0, ideas.length);
+}
+
+// ─── Prompt-based content generation (no report required) ─────────────────────
+
+export async function generateContentFromPrompt(
+  subreddit: string,
+  userInstruction: string,
+  language: "en" | "zh",
+  tone: string = "question",
+  provider: AiProvider = getDefaultAiProvider(),
+  examplePosts: string[] = []
+): Promise<ContentIdeaOutput[]> {
+  const td = TONE_DESC[tone] ?? TONE_DESC.question;
+  const toneDesc = language === "zh" ? td.zh : td.en;
+  const langNote =
+    language === "zh"
+      ? "所有文字（title、angle、postTitle、postBody）必须用简体中文。"
+      : "All text (title, angle, postTitle, postBody) must be in English.";
+
+  const examplesBlock =
+    examplePosts.length > 0
+      ? `
+## Real posts from this community (study the writing style, DO NOT copy content)
+Observe how these real Reddit users write — their sentence structure, vocabulary,
+emotional register, imperfections, and formatting. Your output must match this
+voice and feel, NOT the content.
+
+${examplePosts.join("\n\n---\n\n")}
+
+## Style patterns to extract from the examples above
+- How do they start posts? (mid-thought? with a question? with context?)
+- Do they use perfect grammar or casual/broken sentences?
+- How long are their paragraphs?
+- Do they use hedging language? Self-deprecation? Humor?
+- How do they end — open question, trailing thought, or call-to-action?
+Match these patterns in your output.
+`
+      : "";
+
+  const prompt = `
+You are a Reddit content strategist. Generate 6 distinct post ideas for the subreddit **${subreddit}** based on the user's instruction below.
+
+## User Instruction
+${userInstruction}
+
+## Target Subreddit
+${subreddit}
+
+## Tone for ALL 6 ideas
+${toneDesc}
+${examplesBlock}
+${ANTI_PATTERN_RULES}
+${POST_STRUCTURE_RULES}
+${PERSONA_RULES}
+
+## Critical Rules
+1. All posts must feel native to ${subreddit} — match the community's culture, vocabulary, and discussion style.
+2. Each idea must be genuinely distinct — different hook, different angle.
+3. postBody must be 120-250 words, written like a real Reddit user (first-person, honest, imperfect).
+4. suggestedSubreddit should be ${subreddit} for most ideas, but you may suggest 1-2 alternative subreddits if they fit better.
+5. ${langNote}
+6. Do NOT sound like marketing or AI-generated content. Write like a real person with real experiences.
+
+## Output — strict JSON only
+Return a JSON object with key "ideas" containing an array of exactly 6 objects:
+{
+  "ideas": [
+    {
+      "title": "short idea label (≤15 words)",
+      "angle": "one-sentence content angle / hook strategy",
+      "basedOn": ["relevant topic or keyword this idea references"],
+      "postTitle": "Reddit post title (≤15 words)",
+      "postBody": "full post body text",
+      "suggestedSubreddit": "r/ExampleSubreddit"
+    }
+  ]
+}
+`;
+
+  const raw = await generateJsonObject(
+    prompt,
+    {
+      type: "object",
+      properties: {
+        ideas: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              angle: { type: "string" },
+              basedOn: { type: "array", items: { type: "string" } },
+              postTitle: { type: "string" },
+              postBody: { type: "string" },
+              suggestedSubreddit: { type: "string" },
+            },
+            required: ["title", "angle", "basedOn", "postTitle", "postBody", "suggestedSubreddit"],
+          },
+        },
+      },
+      required: ["ideas"],
+    },
+    provider
+  );
+
+  const ideas = Array.isArray(raw.ideas) ? (raw.ideas as ContentIdeaOutput[]) : [];
+  return ideas.slice(0, 6);
 }

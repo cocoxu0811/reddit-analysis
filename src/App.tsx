@@ -270,8 +270,12 @@ const translations = {
     navContent: "Content Generator",
     historyDetailEmpty: "Select one history item to view its report",
     contentTitle: "Topics & Reddit-style posts",
-    contentEmpty: "Analyze data first, or select a history record with report.",
+    contentEmpty: "Analyze data first, select a history record, or use the prompt box below.",
     regenerate: "Regenerate Ideas",
+    promptPlaceholder: "e.g. r/startups Write 6 posts about how to validate a SaaS idea",
+    promptGenerate: "Generate",
+    promptHint: "Enter r/subreddit + your instruction to generate content directly, no analysis report needed.",
+    basedOnPrompt: "Generated from prompt",
     contentToneLabel: "Draft tone",
     contentToneHint:
       "Applies to every card below: curious doubt, straight ask, “what worked for me,” or vent — typical Reddit moods.",
@@ -437,8 +441,12 @@ const translations = {
     navContent: "内容生成",
     historyDetailEmpty: "请选择一条历史记录查看当时分析",
     contentTitle: "选题与 Reddit 发帖草案",
-    contentEmpty: "请先完成一次分析，或在历史页选择一条有报告的数据。",
+    contentEmpty: "请先完成一次分析、选择历史记录，或使用下方输入框直接生成。",
     regenerate: "重新生成",
+    promptPlaceholder: "例如：r/startups 帮我写6条关于如何验证SaaS想法的帖子",
+    promptGenerate: "生成",
+    promptHint: "输入 r/subreddit + 指令即可直接生成内容，无需分析报告。",
+    basedOnPrompt: "基于输入指令生成",
     contentToneLabel: "发帖语气",
     contentToneHint: "影响下方所有选题与正文草案：疑惑、提问、推荐、吐槽等常见 Reddit 情绪向。",
     toneCurious: "疑惑（拿不准、求拍醒）",
@@ -608,6 +616,8 @@ export default function App() {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [contentIdeas, setContentIdeas] = useState<ContentIdea[]>([]);
   const [contentSubSuggesting, setContentSubSuggesting] = useState(false);
+  const [contentPromptInput, setContentPromptInput] = useState('');
+  const [contentPromptSource, setContentPromptSource] = useState<string | null>(null);
   const [contentTone, setContentTone] = useState<ContentToneId>(() => {
     try {
       const raw = localStorage.getItem('redditContentTone');
@@ -846,16 +856,16 @@ export default function App() {
     const src = report || selected?.report || null;
     if (!src) {
       setContentIdeas([]);
+      setContentSubSuggesting(false);
       return;
     }
     const reqSeq = ++contentSuggestSeqRef.current;
-    // Show template-based ideas immediately as placeholder
-    const baseIdeas = buildIdeasWithDrafts(src, language, contentTone);
-    setContentIdeas(baseIdeas);
+    setContentIdeas([]);
     setContentSubSuggesting(true);
+    setContentPromptSource(null);
     fetchAiContentIdeas(src, reqSeq).then((aiIdeas) => {
       if (reqSeq !== contentSuggestSeqRef.current) return;
-      setContentIdeas(aiIdeas ?? baseIdeas);
+      setContentIdeas(aiIdeas ?? buildIdeasWithDrafts(src, language, contentTone));
       setContentSubSuggesting(false);
     });
   }, [language, report, selectedHistoryId, historyRecords, contentTone, aiProvider]);
@@ -903,13 +913,56 @@ export default function App() {
       return;
     }
     const reqSeq = ++contentSuggestSeqRef.current;
-    const baseIdeas = buildIdeasWithDrafts(baseReport, language, contentTone);
-    setContentIdeas(baseIdeas);
+    setContentIdeas([]);
     setContentSubSuggesting(true);
+    setContentPromptSource(null);
     const aiIdeas = await fetchAiContentIdeas(baseReport, reqSeq);
     if (reqSeq === contentSuggestSeqRef.current) {
-      setContentIdeas(aiIdeas ?? baseIdeas);
+      setContentIdeas(aiIdeas ?? buildIdeasWithDrafts(baseReport, language, contentTone));
       setContentSubSuggesting(false);
+    }
+  };
+
+  const generateFromPrompt = async () => {
+    const input = contentPromptInput.trim();
+    if (!input) return;
+    const subMatch = input.match(/r\/(\w+)/i);
+    const subreddit = subMatch ? `r/${subMatch[1]}` : '';
+    const instruction = input.replace(/r\/\w+/i, '').trim();
+    if (!subreddit || !instruction) return;
+
+    const reqSeq = ++contentSuggestSeqRef.current;
+    setContentIdeas([]);
+    setContentSubSuggesting(true);
+    setContentPromptSource(subreddit);
+    try {
+      const res = await fetch('/api/content/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subreddit, instruction, language, tone: contentTone, aiProvider }),
+      });
+      const data = (await res.json()) as { success?: boolean; ideas?: any[]; error?: string };
+      if (reqSeq !== contentSuggestSeqRef.current) return;
+      if (!res.ok || data.success === false || !Array.isArray(data.ideas)) {
+        throw new Error(data.error || 'Generation failed');
+      }
+      setContentIdeas(
+        data.ideas.map((raw: any) => ({
+          title: String(raw.title ?? ''),
+          angle: String(raw.angle ?? ''),
+          basedOn: Array.isArray(raw.basedOn) ? raw.basedOn.map(String) : [],
+          content: {
+            postTitle: String(raw.postTitle ?? ''),
+            postBody: String(raw.postBody ?? ''),
+            suggestedSubreddit: raw.suggestedSubreddit ? String(raw.suggestedSubreddit) : undefined,
+          },
+        }))
+      );
+    } catch (error: any) {
+      console.warn('[content] prompt generation failed:', error?.message || error);
+      setContentIdeas([]);
+    } finally {
+      if (reqSeq === contentSuggestSeqRef.current) setContentSubSuggesting(false);
     }
   };
 
@@ -1715,18 +1768,62 @@ export default function App() {
               </div>
               <p className="text-xs text-stone-500">{t.contentToneHint}</p>
 
-              <div className="text-sm text-stone-500">
-                {report ? t.basedOnReport : selectedHistory ? t.basedOnHistory : t.contentEmpty}
-              </div>
-              {contentSubSuggesting ? (
-                <div className="text-xs text-stone-500">
-                  {language === 'zh' ? '正在用 AI 匹配更合适的 subreddit…' : 'Matching better subreddits with AI…'}
+              <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-4 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={contentPromptInput}
+                    onChange={(e) => setContentPromptInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !contentSubSuggesting) generateFromPrompt(); }}
+                    placeholder={t.promptPlaceholder}
+                    className="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-reddit-500 focus:outline-none focus:ring-2 focus:ring-reddit-500/20 placeholder:text-stone-400"
+                    disabled={contentSubSuggesting}
+                  />
+                  <button
+                    type="button"
+                    onClick={generateFromPrompt}
+                    disabled={contentSubSuggesting || !contentPromptInput.trim()}
+                    className="px-4 py-2 bg-reddit-600 hover:bg-reddit-700 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                  >
+                    {t.promptGenerate}
+                  </button>
                 </div>
-              ) : null}
+                <p className="text-xs text-stone-400">{t.promptHint}</p>
+              </div>
 
-              {!contentSourceReport ? (
+              <div className="text-sm text-stone-500">
+                {contentPromptSource
+                  ? `${t.basedOnPrompt} — ${contentPromptSource}`
+                  : report ? t.basedOnReport : selectedHistory ? t.basedOnHistory : t.contentEmpty}
+              </div>
+              {!contentSourceReport && !contentSubSuggesting && contentIdeas.length === 0 ? (
                 <div className="h-[260px] flex items-center justify-center text-stone-400 border-2 border-dashed border-stone-200 rounded-2xl">
                   {t.contentEmpty}
+                </div>
+              ) : contentSubSuggesting && contentIdeas.length === 0 ? (
+                <div className="grid grid-cols-1 gap-6">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-md ring-1 ring-stone-100 border-t-4 border-t-stone-300 animate-pulse">
+                      <div className="p-4 border-b border-stone-200/80">
+                        <div className="h-4 w-20 bg-stone-200 rounded-full mb-3" />
+                        <div className="h-5 w-3/4 bg-stone-200 rounded mb-2" />
+                        <div className="h-4 w-1/2 bg-stone-200 rounded" />
+                      </div>
+                      <div className="p-4 space-y-3 bg-stone-50/80">
+                        <div className="h-4 w-24 bg-stone-200 rounded" />
+                        <div className="h-10 w-full bg-stone-100 rounded-lg" />
+                        <div className="h-4 w-20 bg-stone-200 rounded" />
+                        <div className="h-24 w-full bg-stone-100 rounded-lg" />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-stone-500">
+                    <svg className="w-4 h-4 animate-spin text-reddit-500" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    {language === 'zh' ? 'AI 正在生成内容，请稍候…' : 'AI is generating content, please wait…'}
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-6">
