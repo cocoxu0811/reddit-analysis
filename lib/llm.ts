@@ -294,8 +294,10 @@ export async function generateContentIdeas(
   report: RedditAnalysisReport,
   language: "en" | "zh",
   tone: string,
-  provider: AiProvider = getDefaultAiProvider()
+  provider: AiProvider = getDefaultAiProvider(),
+  count: number = 6
 ): Promise<ContentIdeaOutput[]> {
+  const n = Math.min(Math.max(count, 1), 10);
   const td = TONE_DESC[tone] ?? TONE_DESC.question;
   const toneDesc = language === "zh" ? td.zh : td.en;
   const langNote =
@@ -303,8 +305,13 @@ export async function generateContentIdeas(
       ? "所有文字（title、angle、postTitle、postBody）必须用简体中文。"
       : "All text (title, angle, postTitle, postBody) must be in English.";
 
+  const personaBlock = n >= 3 ? PERSONA_RULES.replace(
+    /Each of the 6 posts/g,
+    `Each of the ${n} posts`
+  ) : "";
+
   const prompt = `
-You are a Reddit content strategist. Based on this Reddit community analysis, generate 6 distinct post ideas that fit the **exact domain** of the discussions.
+You are a Reddit content strategist. Based on this Reddit community analysis, generate exactly **${n}** distinct post ideas that fit the **exact domain** of the discussions.
 
 ## Analysis Report
 - Summary: ${report.summary.slice(0, 500)}
@@ -313,21 +320,22 @@ You are a Reddit content strategist. Based on this Reddit community analysis, ge
 - Mentioned Brands: ${report.mentionedBrands.slice(0, 5).join(" | ")}
 - High-Frequency Words: ${report.highFrequencyWords.slice(0, 5).join(" | ")}
 
-## Tone for ALL 6 ideas
+## Tone for ALL ideas
 ${toneDesc}
 ${ANTI_PATTERN_RULES}
 ${POST_STRUCTURE_RULES}
-${PERSONA_RULES}
+${personaBlock}
 
 ## Critical Rules
-1. **Match the domain exactly.** Infer the community topic (adult toys, fitness, gaming, cooking, SaaS, etc.) purely from the analysis above and write accordingly. Never import irrelevant jargon (e.g. "migration", "permissions", "KPI", "landing page", "team bandwidth" in an adult-toys context).
-2. Each idea must be genuinely distinct — different hook, different angle, different aspect of the data.
-3. postBody must be 120-250 words, written like a real Reddit user (first-person, honest, imperfect).
-4. suggestedSubreddit must be a real, active subreddit matching the domain (e.g. r/SexToys, r/tifu, r/relationship_advice — NOT r/SaaS or r/smallbusiness unless the data is about SaaS/business).
-5. ${langNote}
+1. You MUST generate exactly **${n}** ideas — no more, no less.
+2. **Match the domain exactly.** Infer the community topic (adult toys, fitness, gaming, cooking, SaaS, etc.) purely from the analysis above and write accordingly. Never import irrelevant jargon (e.g. "migration", "permissions", "KPI", "landing page", "team bandwidth" in an adult-toys context).
+3. Each idea must be genuinely distinct — different hook, different angle, different aspect of the data.
+4. postBody must be 120-250 words, written like a real Reddit user (first-person, honest, imperfect).
+5. suggestedSubreddit must be a real, active subreddit matching the domain (e.g. r/SexToys, r/tifu, r/relationship_advice — NOT r/SaaS or r/smallbusiness unless the data is about SaaS/business).
+6. ${langNote}
 
 ## Output — strict JSON only
-Return a JSON object with key "ideas" containing an array of exactly 6 objects:
+Return a JSON object with key "ideas" containing an array of exactly ${n} objects:
 {
   "ideas": [
     {
@@ -369,7 +377,7 @@ Return a JSON object with key "ideas" containing an array of exactly 6 objects:
   );
 
   const ideas = Array.isArray(raw.ideas) ? (raw.ideas as ContentIdeaOutput[]) : [];
-  return ideas.slice(0, 6);
+  return ideas.slice(0, n);
 }
 
 function normalizeSubredditName(raw: unknown): string {
@@ -437,8 +445,10 @@ export async function generateContentFromPrompt(
   language: "en" | "zh",
   tone: string = "question",
   provider: AiProvider = getDefaultAiProvider(),
-  examplePosts: string[] = []
+  examplePosts: string[] = [],
+  count: number = 6
 ): Promise<ContentIdeaOutput[]> {
+  const n = Math.min(Math.max(count, 1), 10);
   const td = TONE_DESC[tone] ?? TONE_DESC.question;
   const toneDesc = language === "zh" ? td.zh : td.en;
   const langNote =
@@ -466,8 +476,13 @@ Match these patterns in your output.
 `
       : "";
 
+  const personaBlock = n >= 3 ? PERSONA_RULES.replace(
+    /Each of the 6 posts/g,
+    `Each of the ${n} posts`
+  ) : "";
+
   const prompt = `
-You are a Reddit content strategist. Generate 6 distinct post ideas for the subreddit **${subreddit}** based on the user's instruction below.
+You are a Reddit content strategist. Generate exactly **${n}** distinct post ideas for the subreddit **${subreddit}** based on the user's instruction below.
 
 ## User Instruction
 ${userInstruction}
@@ -475,23 +490,24 @@ ${userInstruction}
 ## Target Subreddit
 ${subreddit}
 
-## Tone for ALL 6 ideas
+## Tone for ALL ideas
 ${toneDesc}
 ${examplesBlock}
 ${ANTI_PATTERN_RULES}
 ${POST_STRUCTURE_RULES}
-${PERSONA_RULES}
+${personaBlock}
 
 ## Critical Rules
-1. All posts must feel native to ${subreddit} — match the community's culture, vocabulary, and discussion style.
-2. Each idea must be genuinely distinct — different hook, different angle.
-3. postBody must be 120-250 words, written like a real Reddit user (first-person, honest, imperfect).
-4. suggestedSubreddit should be ${subreddit} for most ideas, but you may suggest 1-2 alternative subreddits if they fit better.
-5. ${langNote}
-6. Do NOT sound like marketing or AI-generated content. Write like a real person with real experiences.
+1. You MUST generate exactly **${n}** ideas — no more, no less.
+2. All posts must feel native to ${subreddit} — match the community's culture, vocabulary, and discussion style.
+3. Each idea must be genuinely distinct — different hook, different angle.
+4. postBody must be 120-250 words, written like a real Reddit user (first-person, honest, imperfect).
+5. suggestedSubreddit should be ${subreddit} for most ideas, but you may suggest 1-2 alternative subreddits if they fit better.
+6. ${langNote}
+7. Do NOT sound like marketing or AI-generated content. Write like a real person with real experiences.
 
 ## Output — strict JSON only
-Return a JSON object with key "ideas" containing an array of exactly 6 objects:
+Return a JSON object with key "ideas" containing an array of exactly ${n} objects:
 {
   "ideas": [
     {
@@ -533,5 +549,5 @@ Return a JSON object with key "ideas" containing an array of exactly 6 objects:
   );
 
   const ideas = Array.isArray(raw.ideas) ? (raw.ideas as ContentIdeaOutput[]) : [];
-  return ideas.slice(0, 6);
+  return ideas.slice(0, n);
 }

@@ -931,6 +931,9 @@ export default function App() {
     const instruction = input.replace(/r\/\w+/i, '').trim();
     if (!subreddit || !instruction) return;
 
+    const countMatch = input.match(/(\d+)\s*(?:篇|条|个|posts?|ideas?)/i);
+    const count = countMatch ? Math.min(Math.max(Number(countMatch[1]), 1), 10) : 6;
+
     const reqSeq = ++contentSuggestSeqRef.current;
     setContentIdeas([]);
     setContentSubSuggesting(true);
@@ -939,7 +942,7 @@ export default function App() {
       const res = await fetch('/api/content/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subreddit, instruction, language, tone: contentTone, aiProvider }),
+        body: JSON.stringify({ subreddit, instruction, language, tone: contentTone, aiProvider, count }),
       });
       const data = (await res.json()) as { success?: boolean; ideas?: any[]; error?: string };
       if (reqSeq !== contentSuggestSeqRef.current) return;
@@ -1354,7 +1357,7 @@ export default function App() {
             <button
               onClick={handleExportToNotion}
               disabled={isExporting}
-              className="px-4 py-2 bg-reddit-700 hover:bg-reddit-800 disabled:bg-reddit-300 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm shadow-reddit-900/15"
+              className="px-4 py-2 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2"
             >
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
               {t.exportBtn}
@@ -1362,26 +1365,26 @@ export default function App() {
           )}
         </div>
 
-        <div className="bg-sky-50 border border-sky-100 border-l-4 border-l-sky-500 p-6 rounded-2xl shadow-sm ring-1 ring-sky-200/40">
-          <h3 className="text-sky-900 font-semibold mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+        <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
+          <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold">
               1
             </span>
             {t.summary}
           </h3>
-          <p className="text-sky-950/90 text-sm leading-relaxed">{reportData.summary}</p>
+          <p className="text-[var(--md-sys-color-on-surface-variant)] text-sm leading-relaxed">{reportData.summary}</p>
         </div>
 
-        <div className="bg-rose-50 border border-rose-100 border-l-4 border-l-rose-500 p-6 rounded-2xl shadow-sm ring-1 ring-rose-200/40">
-          <h3 className="text-rose-900 font-semibold mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+        <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
+          <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs font-bold">
               2
             </span>
             {t.painPoints}
           </h3>
           <ul className="space-y-2">
             {reportData.painPoints.map((point, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-rose-950/90">
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--md-sys-color-on-surface)]">
                 <span className="text-rose-500 mt-1 font-bold">•</span>
                 {point}
               </li>
@@ -1389,16 +1392,16 @@ export default function App() {
           </ul>
         </div>
 
-        <div className="bg-emerald-50 border border-emerald-100 border-l-4 border-l-emerald-500 p-6 rounded-2xl shadow-sm ring-1 ring-emerald-200/40">
-          <h3 className="text-emerald-900 font-semibold mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+        <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
+          <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">
               3
             </span>
             {t.praisedFeatures}
           </h3>
           <ul className="space-y-2">
             {reportData.praisedFeatures.map((feature, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-emerald-950/90">
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--md-sys-color-on-surface)]">
                 <span className="text-emerald-500 mt-1 font-bold">•</span>
                 {feature}
               </li>
@@ -1406,10 +1409,10 @@ export default function App() {
           </ul>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-violet-50 border border-violet-100 border-l-4 border-l-violet-500 p-6 rounded-2xl shadow-sm ring-1 ring-violet-200/40">
-            <h3 className="text-violet-900 font-semibold mb-3 flex items-center gap-2">
-              <span className="w-7 h-7 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
+            <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">
                 4
               </span>
               {t.mentionedBrands}
@@ -1418,7 +1421,7 @@ export default function App() {
               {reportData.mentionedBrands.map((brand, i) => (
                 <span
                   key={i}
-                  className="px-2.5 py-1 rounded-md text-xs font-medium bg-violet-200/80 text-violet-950 border border-violet-300/60 shadow-sm"
+                  className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] border border-[var(--md-sys-color-outline-variant)]"
                 >
                   {brand}
                 </span>
@@ -1426,9 +1429,9 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-amber-50 border border-amber-100 border-l-4 border-l-amber-500 p-6 rounded-2xl shadow-sm ring-1 ring-amber-200/40">
-            <h3 className="text-amber-950 font-semibold mb-3 flex items-center gap-2">
-              <span className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+          <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
+            <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">
                 5
               </span>
               {t.highFreqWords}
@@ -1437,7 +1440,7 @@ export default function App() {
               {reportData.highFrequencyWords.map((word, i) => (
                 <span
                   key={i}
-                  className="px-2.5 py-1 rounded-md text-xs font-medium bg-amber-200/90 text-amber-950 border border-amber-400/50 shadow-sm"
+                  className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] border border-[var(--md-sys-color-outline-variant)]"
                 >
                   {word}
                 </span>
@@ -1447,33 +1450,33 @@ export default function App() {
         </div>
       </div>
     ) : (
-      <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-stone-400 space-y-4 py-20 border-2 border-dashed border-stone-200 rounded-2xl bg-[#F9F8F6]/50">
-        <FileText className="w-12 h-12 text-stone-300" />
+      <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-[var(--md-sys-color-outline)] space-y-4 py-20 border-2 border-dashed border-[var(--md-sys-color-outline-variant)] rounded-xl bg-[var(--md-sys-color-surface-container-low)]/50">
+        <FileText className="w-12 h-12 text-[var(--md-sys-color-outline-variant)]" />
         <p>{t.emptyState}</p>
       </div>
     )
   );
 
   return (
-    <div className="h-screen bg-gradient-to-b from-reddit-50/60 via-[#F9F8F6] to-insta-50/30 text-stone-900 font-sans flex flex-col overflow-hidden">
+    <div className="h-screen bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface)] font-sans flex flex-col overflow-hidden">
       <Toaster position="top-right" />
       
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-stone-200/90 shrink-0">
+      {/* Header — MD3 top app bar (surface-container) */}
+      <header className="bg-[var(--md-sys-color-surface-container)] border-b border-[var(--md-sys-color-outline-variant)] shrink-0">
         <div className="w-full px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-reddit-600 to-reddit-800 rounded-lg flex items-center justify-center shadow-md shadow-reddit-900/25 ring-1 ring-white/20">
-              <Database className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[var(--md-sys-color-primary-container)] rounded-xl flex items-center justify-center">
+              <Database className="w-5 h-5 text-[var(--md-sys-color-on-primary-container)]" />
             </div>
-            <h1 className="text-xl font-semibold tracking-tight text-stone-800">{t.title}</h1>
+            <h1 className="text-[1.375rem] font-medium tracking-tight text-[var(--md-sys-color-on-surface)]">{t.title}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 px-2 py-1.5 text-sm font-medium text-stone-600 bg-white border border-stone-200 rounded-full">
-              <span className="text-xs text-stone-500">{t.aiProviderLabel}</span>
+            <label className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--md-sys-color-on-surface-variant)] bg-[var(--md-sys-color-surface-container-high)] border border-[var(--md-sys-color-outline-variant)] rounded-full transition-colors hover:bg-[var(--md-sys-color-surface-container-highest)]">
+              <span className="text-xs">{t.aiProviderLabel}</span>
               <select
                 value={aiProvider}
                 onChange={(e) => setAiProvider(e.target.value as AiProvider)}
-                className="bg-transparent text-sm text-stone-700 focus:outline-none"
+                className="bg-transparent text-sm text-[var(--md-sys-color-on-surface)] focus:outline-none cursor-pointer"
               >
                 <option value="gemini">{t.aiProviderGemini}</option>
                 <option value="minimax">{t.aiProviderMinimax}</option>
@@ -1481,14 +1484,14 @@ export default function App() {
             </label>
             <button 
               onClick={() => setLanguage(lang => lang === 'en' ? 'zh' : 'en')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-200 rounded-full transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-highest)] rounded-full transition-[background-color] duration-200"
             >
               <Languages className="w-4 h-4" />
               {language === 'en' ? '中' : 'EN'}
             </button>
             <button 
               onClick={() => setShowSettings(true)}
-              className="p-2 text-stone-500 hover:bg-stone-200 rounded-full transition-colors"
+              className="p-2.5 text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-highest)] rounded-full transition-[background-color] duration-200"
             >
               <Settings className="w-5 h-5" />
             </button>
@@ -1497,20 +1500,20 @@ export default function App() {
       </header>
 
       <main className="flex-1 flex overflow-hidden">
-        <aside className="w-72 shrink-0 border-r border-stone-200/90 bg-white/95 backdrop-blur-sm p-4 overflow-y-auto shadow-[2px_0_12px_-4px_rgba(124,45,18,0.08)]">
-          <div className="space-y-4">
+        <aside className="w-72 shrink-0 border-r border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-4 overflow-y-auto">
+          <div className="space-y-6">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-reddit-800 bg-reddit-100 rounded-md px-2 py-1 mb-2 inline-block">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--md-sys-color-on-primary-container)] bg-[var(--md-sys-color-primary-container)] rounded-full px-3 py-1 mb-3 inline-block">
                 {t.navGroupReddit}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <button
                   type="button"
                   onClick={() => setActivePage('monitor')}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
                     activePage === 'monitor'
-                      ? 'bg-reddit-700 text-white shadow-md shadow-reddit-900/20 ring-1 ring-reddit-500/40'
-                      : 'text-stone-700 hover:bg-reddit-50'
+                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
+                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
                   }`}
                 >
                   <Rss className="w-4 h-4 shrink-0" />
@@ -1519,10 +1522,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('analyze')}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
                     activePage === 'analyze'
-                      ? 'bg-reddit-700 text-white shadow-md shadow-reddit-900/20 ring-1 ring-reddit-500/40'
-                      : 'text-stone-700 hover:bg-reddit-50'
+                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
+                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
                   }`}
                 >
                   <LayoutTemplate className="w-4 h-4 shrink-0" />
@@ -1531,10 +1534,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('history')}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
                     activePage === 'history'
-                      ? 'bg-reddit-700 text-white shadow-md shadow-reddit-900/20 ring-1 ring-reddit-500/40'
-                      : 'text-stone-700 hover:bg-reddit-50'
+                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
+                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
                   }`}
                 >
                   <History className="w-4 h-4 shrink-0" />
@@ -1543,10 +1546,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('content')}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
                     activePage === 'content'
-                      ? 'bg-reddit-700 text-white shadow-md shadow-reddit-900/20 ring-1 ring-reddit-500/40'
-                      : 'text-stone-700 hover:bg-reddit-50'
+                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
+                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
                   }`}
                 >
                   <PenSquare className="w-4 h-4 shrink-0" />
@@ -1555,17 +1558,17 @@ export default function App() {
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-insta-900 bg-insta-100 rounded-md px-2 py-1 mb-2 inline-block">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--md-sys-color-on-tertiary-container)] bg-[var(--md-sys-color-tertiary-container)] rounded-full px-3 py-1 mb-3 inline-block">
                 {t.navGroupInstagram}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <button
                   type="button"
                   onClick={() => setActivePage('competitive')}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
                     activePage === 'competitive'
-                      ? 'bg-insta-700 text-white shadow-md shadow-insta-900/25 ring-1 ring-insta-400/40'
-                      : 'text-stone-700 hover:bg-insta-50'
+                      ? 'bg-[var(--md-sys-color-tertiary-container)] text-[var(--md-sys-color-on-tertiary-container)]'
+                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
                   }`}
                 >
                   <BarChart2 className="w-4 h-4 shrink-0" />
@@ -1574,10 +1577,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('social')}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
                     activePage === 'social'
-                      ? 'bg-insta-700 text-white shadow-md shadow-insta-900/25 ring-1 ring-insta-400/40'
-                      : 'text-stone-700 hover:bg-insta-50'
+                      ? 'bg-[var(--md-sys-color-tertiary-container)] text-[var(--md-sys-color-on-tertiary-container)]'
+                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
                   }`}
                 >
                   <LayoutDashboard className="w-4 h-4 shrink-0" />
@@ -1590,27 +1593,27 @@ export default function App() {
 
         {activePage === 'analyze' ? (
           <section className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto border-b lg:border-b-0 lg:border-r border-stone-200 flex flex-col">
+            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--md-sys-color-outline-variant)] flex flex-col bg-[var(--md-sys-color-surface)]">
               <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col space-y-6">
-                <h2 className="text-lg font-medium flex items-center gap-2 text-stone-800 shrink-0">
-                  <FileText className="w-5 h-5 text-stone-600" />
+                <h2 className="text-lg font-medium flex items-center gap-2 text-[var(--md-sys-color-on-surface)] shrink-0">
+                  <FileText className="w-5 h-5 text-[var(--md-sys-color-on-surface-variant)]" />
                   {t.dataInput}
                 </h2>
 
                 <div className="flex-1 flex flex-col space-y-4">
-                  <div className="shrink-0 border-2 border-dashed border-stone-300 rounded-xl p-6 text-center hover:bg-stone-50 transition-colors cursor-pointer relative">
+                  <div className="shrink-0 border-2 border-dashed border-[var(--md-sys-color-outline-variant)] rounded-xl p-6 text-center hover:bg-[var(--md-sys-color-surface-container-low)] transition-[background-color] duration-200 cursor-pointer relative">
                     <input
                       type="file"
                       accept=".csv,.txt,.json"
                       onChange={handleFileUpload}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <Upload className="w-8 h-8 text-stone-400 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-stone-700">{t.uploadText}</p>
-                    <p className="text-xs text-stone-500 mt-1">{t.dragDrop}</p>
+                    <Upload className="w-8 h-8 text-[var(--md-sys-color-outline)] mx-auto mb-2" />
+                    <p className="text-sm font-medium text-[var(--md-sys-color-on-surface)]">{t.uploadText}</p>
+                    <p className="text-xs text-[var(--md-sys-color-on-surface-variant)] mt-1">{t.dragDrop}</p>
                   </div>
 
-                  <div className="shrink-0 border border-stone-200 rounded-xl p-4 bg-white">
+                  <div className="shrink-0 border border-[var(--md-sys-color-outline-variant)] rounded-xl p-4 bg-[var(--md-sys-color-surface-container-lowest)]">
                     <p className="text-xs text-stone-500 mb-2">{t.pasteRedditLink}</p>
                     <div className="flex gap-2">
                       <input
@@ -1618,12 +1621,12 @@ export default function App() {
                         value={redditUrl}
                         onChange={(e) => setRedditUrl(e.target.value)}
                         placeholder={t.redditLinkPlaceholder}
-                        className="w-full p-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-reddit-500/40 focus:border-reddit-500 text-sm bg-white"
+                        className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                       />
                       <button
                         onClick={handleConvertRedditLink}
                         disabled={isConverting}
-                        className="px-3 py-2 bg-stone-100 hover:bg-stone-200 disabled:bg-stone-100 text-stone-700 rounded-lg text-sm font-medium whitespace-nowrap"
+                        className="px-3 py-2 bg-[var(--md-sys-color-secondary-container)] hover:brightness-95 disabled:opacity-50 text-[var(--md-sys-color-on-secondary-container)] rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200"
                       >
                         {isConverting ? <Loader2 className="w-4 h-4 animate-spin" /> : t.convertToJsonBtn}
                       </button>
@@ -1643,7 +1646,7 @@ export default function App() {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder={t.jsonAreaPlaceholder}
-                    className="w-full flex-1 min-h-[200px] p-4 border border-stone-200 rounded-xl focus:ring-2 focus:ring-reddit-500/40 focus:border-reddit-500 resize-none text-sm bg-white shadow-sm"
+                    className="w-full flex-1 min-h-[200px] p-4 border border-[var(--md-sys-color-outline-variant)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] resize-none text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                   />
 
                   <button
@@ -1658,7 +1661,7 @@ export default function App() {
                   <button
                     onClick={handleAnalyze}
                     disabled={isAnalyzing || !inputText.trim()}
-                    className="shrink-0 w-full py-3.5 bg-reddit-700 hover:bg-reddit-800 disabled:bg-reddit-300 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-md shadow-reddit-900/20 ring-1 ring-reddit-500/30"
+                    className="shrink-0 w-full py-3.5 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] text-[var(--md-sys-color-on-primary)] rounded-full font-medium transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     {isAnalyzing ? (
                       <>
@@ -1680,7 +1683,7 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'history' ? (
-          <section className="flex-1 p-6 lg:p-8 overflow-hidden bg-[#F9F8F6]">
+          <section className="flex-1 p-6 lg:p-8 overflow-hidden bg-[var(--md-sys-color-surface)]">
             <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 h-full">
               <div className="bg-white rounded-2xl border border-stone-200 p-4 overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
@@ -1760,7 +1763,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => generateContentIdeas(contentSourceReport)}
-                    className="px-4 py-2 bg-reddit-700 hover:bg-reddit-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-reddit-900/15 ring-1 ring-reddit-500/25"
+                    className="px-4 py-2 bg-[var(--md-sys-color-primary)] hover:brightness-110 text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200"
                   >
                     {t.regenerate}
                   </button>
@@ -1768,7 +1771,7 @@ export default function App() {
               </div>
               <p className="text-xs text-stone-500">{t.contentToneHint}</p>
 
-              <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-4 space-y-2">
+              <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-4 space-y-2">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1776,49 +1779,49 @@ export default function App() {
                     onChange={(e) => setContentPromptInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !contentSubSuggesting) generateFromPrompt(); }}
                     placeholder={t.promptPlaceholder}
-                    className="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-reddit-500 focus:outline-none focus:ring-2 focus:ring-reddit-500/20 placeholder:text-stone-400"
+                    className="flex-1 rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-lowest)] px-4 py-2.5 text-sm text-[var(--md-sys-color-on-surface)] focus:border-[var(--md-sys-color-primary)] focus:outline-none focus:ring-2 focus:ring-reddit-500/20 placeholder:text-[var(--md-sys-color-on-surface-variant)]"
                     disabled={contentSubSuggesting}
                   />
                   <button
                     type="button"
                     onClick={generateFromPrompt}
                     disabled={contentSubSuggesting || !contentPromptInput.trim()}
-                    className="px-4 py-2 bg-reddit-600 hover:bg-reddit-700 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                    className="px-5 py-2.5 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] disabled:cursor-not-allowed text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200"
                   >
                     {t.promptGenerate}
                   </button>
                 </div>
-                <p className="text-xs text-stone-400">{t.promptHint}</p>
+                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t.promptHint}</p>
               </div>
 
-              <div className="text-sm text-stone-500">
+              <div className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
                 {contentPromptSource
                   ? `${t.basedOnPrompt} — ${contentPromptSource}`
                   : report ? t.basedOnReport : selectedHistory ? t.basedOnHistory : t.contentEmpty}
               </div>
               {!contentSourceReport && !contentSubSuggesting && contentIdeas.length === 0 ? (
-                <div className="h-[260px] flex items-center justify-center text-stone-400 border-2 border-dashed border-stone-200 rounded-2xl">
+                <div className="h-[260px] flex items-center justify-center text-[var(--md-sys-color-outline)] border-2 border-dashed border-[var(--md-sys-color-outline-variant)] rounded-xl">
                   {t.contentEmpty}
                 </div>
               ) : contentSubSuggesting && contentIdeas.length === 0 ? (
-                <div className="grid grid-cols-1 gap-6">
+                <div className="grid grid-cols-1 gap-4">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-md ring-1 ring-stone-100 border-t-4 border-t-stone-300 animate-pulse">
-                      <div className="p-4 border-b border-stone-200/80">
-                        <div className="h-4 w-20 bg-stone-200 rounded-full mb-3" />
-                        <div className="h-5 w-3/4 bg-stone-200 rounded mb-2" />
-                        <div className="h-4 w-1/2 bg-stone-200 rounded" />
+                    <div key={i} className="border border-[var(--md-sys-color-outline-variant)] rounded-xl overflow-hidden bg-[var(--md-sys-color-surface-container-lowest)] animate-pulse">
+                      <div className="p-5 border-b border-[var(--md-sys-color-outline-variant)]">
+                        <div className="h-4 w-20 bg-[var(--md-sys-color-surface-container-high)] rounded-full mb-3" />
+                        <div className="h-5 w-3/4 bg-[var(--md-sys-color-surface-container-high)] rounded-lg mb-2" />
+                        <div className="h-4 w-1/2 bg-[var(--md-sys-color-surface-container)] rounded-lg" />
                       </div>
-                      <div className="p-4 space-y-3 bg-stone-50/80">
-                        <div className="h-4 w-24 bg-stone-200 rounded" />
-                        <div className="h-10 w-full bg-stone-100 rounded-lg" />
-                        <div className="h-4 w-20 bg-stone-200 rounded" />
-                        <div className="h-24 w-full bg-stone-100 rounded-lg" />
+                      <div className="p-5 space-y-3 bg-[var(--md-sys-color-surface-container-low)]">
+                        <div className="h-4 w-24 bg-[var(--md-sys-color-surface-container-high)] rounded-lg" />
+                        <div className="h-10 w-full bg-[var(--md-sys-color-surface-container)] rounded-xl" />
+                        <div className="h-4 w-20 bg-[var(--md-sys-color-surface-container-high)] rounded-lg" />
+                        <div className="h-24 w-full bg-[var(--md-sys-color-surface-container)] rounded-xl" />
                       </div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-stone-500">
-                    <svg className="w-4 h-4 animate-spin text-reddit-500" viewBox="0 0 24 24" fill="none">
+                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-[var(--md-sys-color-on-surface-variant)]">
+                    <svg className="w-4 h-4 animate-spin text-[var(--md-sys-color-primary)]" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
@@ -1826,23 +1829,23 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-6">
+                <div className="grid grid-cols-1 gap-4">
                   {contentIdeas.map((idea, idx) => (
                     <article
                       key={`${idea.title}-${idx}`}
-                      className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-md ring-1 ring-reddit-100/80 border-t-4 border-t-reddit-500"
+                      className="border border-[var(--md-sys-color-outline-variant)] rounded-xl overflow-hidden bg-[var(--md-sys-color-surface-container-lowest)] transition-[box-shadow] duration-200 hover:shadow-md"
                     >
-                      <div className="p-4 border-b border-stone-200/80 bg-gradient-to-br from-white to-reddit-50/40">
-                        <div className="text-xs font-semibold text-reddit-800 bg-reddit-100 border border-reddit-200/80 rounded-full px-2.5 py-0.5 w-fit mb-2">
-                          主题 {idx + 1}
+                      <div className="p-5 border-b border-[var(--md-sys-color-outline-variant)]">
+                        <div className="text-xs font-medium text-[var(--md-sys-color-on-primary-container)] bg-[var(--md-sys-color-primary-container)] rounded-full px-3 py-0.5 w-fit mb-2.5">
+                          {language === 'zh' ? '主题' : 'Topic'} {idx + 1}
                         </div>
-                        <h3 className="text-base font-semibold text-stone-800 mb-2 leading-snug">{idea.title}</h3>
-                        <p className="text-sm text-stone-600 leading-relaxed mb-3">{idea.angle}</p>
+                        <h3 className="text-base font-medium text-[var(--md-sys-color-on-surface)] mb-2 leading-snug">{idea.title}</h3>
+                        <p className="text-sm text-[var(--md-sys-color-on-surface-variant)] leading-relaxed mb-3">{idea.angle}</p>
                         <div className="flex flex-wrap gap-2">
                           {idea.basedOn.map((tag, i) => (
                             <span
                               key={`${tag}-${i}`}
-                              className={`px-2 py-1 rounded-md text-xs font-medium shadow-sm ${contentIdeaTagClass(i)}`}
+                              className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)]"
                             >
                               {tag}
                             </span>
@@ -1850,29 +1853,29 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="p-4 space-y-4 bg-stone-50/80">
-                        <h4 className="text-sm font-semibold text-stone-800 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-reddit-600" />
+                      <div className="p-5 space-y-4 bg-[var(--md-sys-color-surface-container-low)]">
+                        <h4 className="text-sm font-medium text-[var(--md-sys-color-on-surface)] flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-[var(--md-sys-color-primary)]" />
                           {t.contentDraftSection}
                         </h4>
 
                         <div className="space-y-2">
-                          <div className="text-xs font-medium text-stone-500 uppercase tracking-wide">{t.redditPostTitleLabel}</div>
-                          <p className="text-sm font-medium text-stone-900 leading-snug bg-white border border-stone-200 rounded-lg px-3 py-2">
+                          <div className="text-xs font-medium text-[var(--md-sys-color-on-surface-variant)] uppercase tracking-wide">{t.redditPostTitleLabel}</div>
+                          <p className="text-sm font-medium text-[var(--md-sys-color-on-surface)] leading-snug bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] rounded-xl px-4 py-2.5">
                             {idea.content.postTitle}
                           </p>
                         </div>
 
                         <div className="space-y-2">
-                          <div className="text-xs font-medium text-stone-500 uppercase tracking-wide">{t.redditPostBodyLabel}</div>
-                          <div className="text-sm text-stone-800 leading-relaxed bg-white border border-stone-200 rounded-lg px-3 py-3 whitespace-pre-wrap font-sans">
+                          <div className="text-xs font-medium text-[var(--md-sys-color-on-surface-variant)] uppercase tracking-wide">{t.redditPostBodyLabel}</div>
+                          <div className="text-sm text-[var(--md-sys-color-on-surface)] leading-relaxed bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] rounded-xl px-4 py-3 whitespace-pre-wrap font-sans">
                             {idea.content.postBody}
                           </div>
                         </div>
 
                         {idea.content.suggestedSubreddit ? (
-                          <p className="text-xs text-stone-500">
-                            <span className="font-medium text-stone-600">{t.redditSubredditHint}:</span>{' '}
+                          <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                            <span className="font-medium text-[var(--md-sys-color-on-surface)]">{t.redditSubredditHint}:</span>{' '}
                             {idea.content.suggestedSubreddit}
                           </p>
                         ) : null}
@@ -1884,17 +1887,17 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'monitor' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[#F9F8F6]">
+          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--md-sys-color-surface)]">
             <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
               <div>
-                <h2 className="text-2xl font-semibold tracking-tight text-stone-800">{t.monitorTitle}</h2>
-                <p className="text-sm text-stone-500 mt-1">{t.monitorHelp}</p>
-                <div className="mt-3 p-3 rounded-lg bg-sky-50 border border-sky-100 border-l-4 border-l-sky-500 text-sm text-sky-950 leading-relaxed shadow-sm ring-1 ring-sky-200/40">
+                <h2 className="text-2xl font-medium tracking-tight text-[var(--md-sys-color-on-surface)]">{t.monitorTitle}</h2>
+                <p className="text-sm text-[var(--md-sys-color-on-surface-variant)] mt-1">{t.monitorHelp}</p>
+                <div className="mt-3 p-3 rounded-xl bg-[var(--md-sys-color-secondary-container)] border border-[var(--md-sys-color-outline-variant)] text-sm text-[var(--md-sys-color-on-secondary-container)] leading-relaxed">
                   {t.monitorCompetitiveHint}
                 </div>
               </div>
 
-              <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-3">
+              <div className="p-4 bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] rounded-xl space-y-3">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                   <span className="text-xs font-medium text-stone-600">
                     {language === 'zh' ? '拉取方式' : 'Fetch mode'}
@@ -2003,7 +2006,7 @@ export default function App() {
                   type="button"
                   onClick={handleMonitorScan}
                   disabled={monitorLoading}
-                  className="px-4 py-2.5 bg-reddit-700 hover:bg-reddit-800 disabled:bg-reddit-300 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm shadow-reddit-900/15 ring-1 ring-reddit-500/25"
+                  className="px-4 py-2.5 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium flex items-center gap-2 transition-all duration-200"
                 >
                   {monitorLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rss className="w-4 h-4" />}
                   {monitorLoading ? t.monitorLoading : t.monitorFetchBtn}
@@ -2236,7 +2239,7 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'competitive' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[#F9F8F6]">
+          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--md-sys-color-surface)]">
             <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
                 <div>
@@ -2519,7 +2522,7 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'social' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[#F9F8F6]">
+          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--md-sys-color-surface)]">
             <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
                 <div>
@@ -2760,34 +2763,34 @@ export default function App() {
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#F9F8F6] rounded-2xl max-w-md w-full p-6 shadow-xl animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-semibold mb-4 text-stone-800">{t.settingsTitle}</h2>
+          <div className="bg-[var(--md-sys-color-surface-container-high)] rounded-[28px] max-w-md w-full p-6 shadow-xl animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-medium mb-4 text-[var(--md-sys-color-on-surface)]">{t.settingsTitle}</h2>
             
             <div className="space-y-4">
-              <div className="bg-stone-200/50 text-stone-800 p-3 rounded-lg text-xs flex gap-2 items-start">
+              <div className="bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] p-3 rounded-xl text-xs flex gap-2 items-start">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <p>{t.settingsHelp}</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">{t.apiKeyLabel}</label>
+                <label className="block text-sm font-medium text-[var(--md-sys-color-on-surface)] mb-1">{t.apiKeyLabel}</label>
                 <input 
                   type="password" 
                   value={notionApiKey}
                   onChange={(e) => setNotionApiKey(e.target.value)}
                   placeholder="secret_..."
-                  className="w-full p-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-reddit-500/40 focus:border-reddit-500 text-sm bg-white"
+                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">{t.dbIdLabel}</label>
+                <label className="block text-sm font-medium text-[var(--md-sys-color-on-surface)] mb-1">{t.dbIdLabel}</label>
                 <input 
                   type="text" 
                   value={notionDbId}
                   onChange={(e) => setNotionDbId(e.target.value)}
                   placeholder="e.g. 1234567890abcdef1234567890abcdef"
-                  className="w-full p-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-reddit-500/40 focus:border-reddit-500 text-sm bg-white"
+                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                 />
               </div>
             </div>
@@ -2795,13 +2798,13 @@ export default function App() {
             <div className="mt-6 flex justify-end gap-3">
               <button 
                 onClick={() => setShowSettings(false)}
-                className="px-4 py-2 text-stone-600 hover:bg-stone-200 rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 text-[var(--md-sys-color-primary)] hover:bg-[var(--md-sys-color-surface-container-highest)] rounded-full text-sm font-medium transition-all duration-200"
               >
                 {t.cancel}
               </button>
               <button 
                 onClick={saveSettings}
-                className="px-4 py-2 bg-reddit-700 hover:bg-reddit-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-reddit-900/15 ring-1 ring-reddit-500/25"
+                className="px-4 py-2 bg-[var(--md-sys-color-primary)] hover:brightness-110 text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200"
               >
                 {t.save}
               </button>

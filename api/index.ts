@@ -98,6 +98,7 @@ app.post("/api/content/generate", async (req, res) => {
       language = "en",
       tone = "question",
       aiProvider = "gemini",
+      count = 6,
     } = req.body || {};
 
     const sub = String(subreddit).trim();
@@ -114,7 +115,9 @@ app.post("/api/content/generate", async (req, res) => {
       instr,
       language === "zh" ? "zh" : "en",
       String(tone),
-      provider
+      provider,
+      [],
+      Number(count) || 6
     );
     res.json({ success: true, provider, ideas });
   } catch (error: any) {
