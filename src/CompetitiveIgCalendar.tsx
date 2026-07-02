@@ -42,18 +42,15 @@ function getBucket<T>(by: Record<string, T[]>, pilot: string): T[] {
   return f ? by[f] : [];
 }
 
-/**
- * 七个试点固定调色（与 pilotHandles 下标对应）。
- * 按色相大致均分（红→橙→金→绿→青→蓝→紫），提高彼此区分度；避免相邻近似的双橙/双深绿青。
- */
+/** 七个试点固定调色 — 黑白简约风灰阶区分 */
 export const PILOT_DOT_COLORS = [
-  '#E11D48', // rose / 红粉
-  '#EA580C', // orange / 橙
-  '#CA8A04', // amber / 金棕（与橙区分明显）
-  '#16A34A', // green / 绿
-  '#0891B2', // cyan / 青
-  '#2563EB', // blue / 蓝
-  '#9333EA', // violet / 紫
+  '#171717',
+  '#404040',
+  '#737373',
+  '#a3a3a3',
+  '#525252',
+  '#262626',
+  '#d4d4d4',
 ];
 
 type Labels = {

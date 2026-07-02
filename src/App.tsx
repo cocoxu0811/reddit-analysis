@@ -1316,37 +1316,29 @@ export default function App() {
 
   const emotionBadgeClass = (e: string) => {
     const map: Record<string, string> = {
-      疑惑: 'bg-sky-100 text-sky-900 border-sky-200 shadow-sm',
-      生气: 'bg-red-100 text-red-900 border-red-200 shadow-sm',
-      兴奋: 'bg-amber-100 text-amber-900 border-amber-200 shadow-sm',
-      失望: 'bg-slate-200 text-slate-800 border-slate-300 shadow-sm',
-      讽刺: 'bg-violet-100 text-violet-900 border-violet-200 shadow-sm',
-      中性: 'bg-stone-100 text-stone-700 border-stone-200 shadow-sm',
+      疑惑: 'bg-neutral-100 text-neutral-800 border-neutral-200',
+      生气: 'bg-neutral-200 text-neutral-900 border-neutral-300',
+      兴奋: 'bg-neutral-50 text-neutral-900 border-neutral-200',
+      失望: 'bg-neutral-100 text-neutral-700 border-neutral-300',
+      讽刺: 'bg-neutral-200 text-neutral-800 border-neutral-400',
+      中性: 'bg-neutral-50 text-neutral-600 border-neutral-200',
     };
     return map[e] || map['中性'];
   };
 
   const categoryBadgeClass = (c: string) => {
     const map: Record<string, string> = {
-      推荐: 'bg-emerald-50 text-emerald-900 border-emerald-200 shadow-sm',
-      吐槽: 'bg-orange-50 text-orange-900 border-orange-200 shadow-sm',
-      讨论: 'bg-blue-50 text-blue-900 border-blue-200 shadow-sm',
-      求助: 'bg-cyan-50 text-cyan-900 border-cyan-200 shadow-sm',
-      展示: 'bg-fuchsia-50 text-fuchsia-900 border-fuchsia-200 shadow-sm',
+      推荐: 'bg-neutral-50 text-neutral-900 border-neutral-200',
+      吐槽: 'bg-neutral-100 text-neutral-800 border-neutral-300',
+      讨论: 'bg-neutral-50 text-neutral-700 border-neutral-200',
+      求助: 'bg-neutral-100 text-neutral-900 border-neutral-200',
+      展示: 'bg-neutral-200 text-neutral-800 border-neutral-300',
     };
-    return map[c] || 'bg-stone-50 text-stone-800 border-stone-200';
+    return map[c] || 'bg-neutral-50 text-neutral-800 border-neutral-200';
   };
 
-  const contentIdeaTagClass = (i: number) => {
-    const styles = [
-      'bg-reddit-100 text-reddit-900 border border-reddit-200/90',
-      'bg-emerald-100 text-emerald-900 border border-emerald-200/90',
-      'bg-sky-100 text-sky-900 border border-sky-200/90',
-      'bg-violet-100 text-violet-900 border border-violet-200/90',
-      'bg-amber-100 text-amber-950 border border-amber-200/90',
-    ];
-    return styles[i % styles.length];
-  };
+  const contentIdeaTagClass = (_i: number) =>
+    'bg-neutral-100 text-neutral-800 border border-neutral-200';
 
   const renderReportContent = (reportData: Report | null, showExport: boolean) => (
     reportData ? (
@@ -1367,7 +1359,7 @@ export default function App() {
 
         <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
           <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold">
+            <span className="w-7 h-7 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-bold">
               1
             </span>
             {t.summary}
@@ -1377,7 +1369,7 @@ export default function App() {
 
         <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
           <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs font-bold">
+            <span className="w-7 h-7 rounded-full bg-neutral-800 text-white flex items-center justify-center text-xs font-bold">
               2
             </span>
             {t.painPoints}
@@ -1385,7 +1377,7 @@ export default function App() {
           <ul className="space-y-2">
             {reportData.painPoints.map((point, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-[var(--md-sys-color-on-surface)]">
-                <span className="text-rose-500 mt-1 font-bold">•</span>
+                <span className="text-neutral-500 mt-1 font-bold">•</span>
                 {point}
               </li>
             ))}
@@ -1394,7 +1386,7 @@ export default function App() {
 
         <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
           <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">
+            <span className="w-7 h-7 rounded-full bg-neutral-700 text-white flex items-center justify-center text-xs font-bold">
               3
             </span>
             {t.praisedFeatures}
@@ -1402,7 +1394,7 @@ export default function App() {
           <ul className="space-y-2">
             {reportData.praisedFeatures.map((feature, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-[var(--md-sys-color-on-surface)]">
-                <span className="text-emerald-500 mt-1 font-bold">•</span>
+                <span className="text-neutral-500 mt-1 font-bold">•</span>
                 {feature}
               </li>
             ))}
@@ -1412,7 +1404,7 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
             <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">
+              <span className="w-7 h-7 rounded-full bg-neutral-600 text-white flex items-center justify-center text-xs font-bold">
                 4
               </span>
               {t.mentionedBrands}
@@ -1431,7 +1423,7 @@ export default function App() {
 
           <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
             <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">
+              <span className="w-7 h-7 rounded-full bg-neutral-500 text-white flex items-center justify-center text-xs font-bold">
                 5
               </span>
               {t.highFreqWords}
@@ -1621,7 +1613,7 @@ export default function App() {
                         value={redditUrl}
                         onChange={(e) => setRedditUrl(e.target.value)}
                         placeholder={t.redditLinkPlaceholder}
-                        className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                        className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                       />
                       <button
                         onClick={handleConvertRedditLink}
@@ -1646,7 +1638,7 @@ export default function App() {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder={t.jsonAreaPlaceholder}
-                    className="w-full flex-1 min-h-[200px] p-4 border border-[var(--md-sys-color-outline-variant)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] resize-none text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                    className="w-full flex-1 min-h-[200px] p-4 border border-[var(--md-sys-color-outline-variant)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] resize-none text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                   />
 
                   <button
@@ -1654,7 +1646,7 @@ export default function App() {
                     onClick={handleLoadDemo}
                     className="shrink-0 w-full py-2.5 border border-stone-300 bg-white hover:bg-stone-50 text-stone-800 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
                   >
-                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <Sparkles className="w-4 h-4 text-neutral-600" />
                     {t.loadDemoBtn}
                   </button>
 
@@ -1702,8 +1694,8 @@ export default function App() {
                         onClick={() => setSelectedHistoryId(record.id)}
                         className={`w-full text-left p-3 border rounded-lg transition-colors ${
                           selectedHistoryId === record.id
-                            ? 'border-reddit-600 bg-reddit-50 ring-1 ring-reddit-200/70 shadow-sm'
-                            : 'border-stone-200 hover:bg-reddit-50/40 hover:border-reddit-200'
+                            ? 'border-neutral-900 bg-neutral-50 ring-1 ring-neutral-200'
+                            : 'border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300'
                         }`}
                       >
                         <div className="text-xs text-stone-500 mb-1">{new Date(record.createdAt).toLocaleString()}</div>
@@ -1752,7 +1744,7 @@ export default function App() {
                     <select
                       value={contentTone}
                       onChange={(e) => setContentTone(e.target.value as ContentToneId)}
-                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-reddit-500 focus:outline-none focus:ring-2 focus:ring-reddit-500/20"
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-400/30"
                     >
                       <option value="curious">{t.toneCurious}</option>
                       <option value="question">{t.toneQuestion}</option>
@@ -1779,7 +1771,7 @@ export default function App() {
                     onChange={(e) => setContentPromptInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !contentSubSuggesting) generateFromPrompt(); }}
                     placeholder={t.promptPlaceholder}
-                    className="flex-1 rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-lowest)] px-4 py-2.5 text-sm text-[var(--md-sys-color-on-surface)] focus:border-[var(--md-sys-color-primary)] focus:outline-none focus:ring-2 focus:ring-reddit-500/20 placeholder:text-[var(--md-sys-color-on-surface-variant)]"
+                    className="flex-1 rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-lowest)] px-4 py-2.5 text-sm text-[var(--md-sys-color-on-surface)] focus:border-[var(--md-sys-color-primary)] focus:outline-none focus:ring-2 focus:ring-neutral-400/30 placeholder:text-[var(--md-sys-color-on-surface-variant)]"
                     disabled={contentSubSuggesting}
                   />
                   <button
@@ -1970,7 +1962,7 @@ export default function App() {
                               setMonitorSubreddits((prev) => prev.filter((_, i) => i !== idx))
                             }
                             title={language === 'zh' ? '移除此行' : 'Remove row'}
-                            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-stone-200 bg-white hover:bg-red-50 text-stone-500 hover:text-red-700"
+                            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900"
                           >
                             <Minus className="w-4 h-4" />
                           </button>
@@ -2058,15 +2050,15 @@ export default function App() {
                   filteredMonitorPosts.map((p) => (
                     <article
                       key={p.id}
-                      className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm border-l-4 border-l-reddit-300 ring-1 ring-stone-100/80"
+                      className="bg-white border border-neutral-200 rounded-xl overflow-hidden border-l-4 border-l-neutral-400"
                     >
-                      <div className="p-4 border-b border-stone-100 flex flex-wrap items-start gap-2 justify-between">
+                      <div className="p-4 border-b border-neutral-100 flex flex-wrap items-start gap-2 justify-between">
                         <div className="flex-1 min-w-0">
                           <a
                             href={p.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-base font-semibold text-stone-900 hover:text-reddit-700 leading-snug"
+                            className="text-base font-semibold text-neutral-900 hover:text-neutral-600 leading-snug"
                           >
                             {p.title}
                           </a>
@@ -2077,7 +2069,7 @@ export default function App() {
                             <span>↑{p.score}</span>
                             <span>💬{p.numComments}</span>
                             {p.flair ? (
-                              <span className="text-reddit-800 bg-reddit-100 px-1.5 py-0.5 rounded border border-reddit-200/80 text-[11px] font-medium">
+                              <span className="text-neutral-700 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 text-[11px] font-medium">
                                 {p.flair}
                               </span>
                             ) : null}
@@ -2093,8 +2085,8 @@ export default function App() {
                           <span
                             className={`text-xs px-2 py-1 rounded-md border shadow-sm ${
                               p.classificationSource !== 'heuristic'
-                                ? 'bg-violet-50 text-violet-900 border-violet-200'
-                                : 'bg-stone-100 text-stone-600 border-stone-200'
+                                ? 'bg-neutral-100 text-neutral-900 border-neutral-300'
+                                : 'bg-neutral-50 text-neutral-600 border-neutral-200'
                             }`}
                           >
                             {p.classificationSource === 'minimax'
@@ -2110,7 +2102,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => openMonitorPostForAnalyze(p)}
-                          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-reddit-700 text-white hover:bg-reddit-800 transition-colors shadow-sm shadow-reddit-900/15 ring-1 ring-reddit-500/25"
+                          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-full bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
                         >
                           <ArrowRight className="w-4 h-4" />
                           {t.monitorToAnalyze}
@@ -2135,34 +2127,34 @@ export default function App() {
                           {
                             key: 'likes',
                             label: t.monitorIntentLikes,
-                            ring: 'ring-emerald-200/90',
-                            bar: 'border-l-emerald-500',
-                            bg: 'bg-emerald-50/90',
-                            itemBorder: 'border-emerald-200',
+                            ring: 'ring-neutral-200',
+                            bar: 'border-l-neutral-900',
+                            bg: 'bg-neutral-50',
+                            itemBorder: 'border-neutral-200',
                           },
                           {
                             key: 'dislikes',
                             label: t.monitorIntentDislikes,
-                            ring: 'ring-rose-200/90',
-                            bar: 'border-l-rose-500',
-                            bg: 'bg-rose-50/90',
-                            itemBorder: 'border-rose-200',
+                            ring: 'ring-neutral-300',
+                            bar: 'border-l-neutral-700',
+                            bg: 'bg-neutral-100',
+                            itemBorder: 'border-neutral-300',
                           },
                           {
                             key: 'requests',
                             label: t.monitorIntentRequests,
-                            ring: 'ring-sky-200/90',
-                            bar: 'border-l-sky-500',
-                            bg: 'bg-sky-50/90',
-                            itemBorder: 'border-sky-200',
+                            ring: 'ring-neutral-200',
+                            bar: 'border-l-neutral-600',
+                            bg: 'bg-neutral-50',
+                            itemBorder: 'border-neutral-200',
                           },
                           {
                             key: 'complaints',
                             label: t.monitorIntentComplaints,
-                            ring: 'ring-orange-200/90',
-                            bar: 'border-l-orange-500',
-                            bg: 'bg-orange-50/90',
-                            itemBorder: 'border-orange-200',
+                            ring: 'ring-neutral-300',
+                            bar: 'border-l-neutral-500',
+                            bg: 'bg-neutral-100',
+                            itemBorder: 'border-neutral-300',
                           },
                         ];
                         return (
@@ -2224,7 +2216,7 @@ export default function App() {
                         {expandedMonitorId === p.id ? (
                           <ul className="mt-2 space-y-2 max-h-64 overflow-y-auto">
                             {p.comments.map((c) => (
-                              <li key={c.id} className="text-sm border-l-2 border-reddit-300 bg-reddit-50/30 pl-3 py-1 rounded-r">
+                              <li key={c.id} className="text-sm border-l-2 border-neutral-400 bg-neutral-50 pl-3 py-1 rounded-r">
                                 <span className="text-xs text-stone-500">u/{c.author} ↑{c.score}</span>
                                 <p className="text-stone-800 whitespace-pre-wrap mt-0.5">{c.body}</p>
                               </li>
@@ -2245,7 +2237,7 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-semibold tracking-tight text-stone-800 flex flex-wrap items-center gap-2">
                     {t.competitiveTitle}
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-insta-100 text-insta-900 border border-insta-200/80 shadow-sm">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-900 border border-neutral-200">
                       Instagram
                     </span>
                   </h2>
@@ -2256,7 +2248,7 @@ export default function App() {
                   type="button"
                   onClick={handleCompetitiveSync}
                   disabled={competitiveSyncing}
-                  className="px-4 py-2.5 bg-insta-700 hover:bg-insta-800 disabled:bg-insta-300 text-white rounded-lg text-sm font-medium flex items-center gap-2 shrink-0 shadow-md shadow-insta-900/25 ring-1 ring-insta-400/35"
+                  className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white rounded-full text-sm font-medium flex items-center gap-2 shrink-0 transition-colors"
                 >
                   {competitiveSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
                   {competitiveSyncing ? t.competitiveSyncing : t.competitiveSync}
@@ -2296,7 +2288,7 @@ export default function App() {
                                 <div className="text-stone-700">
                                   {h?.updatedAt ? new Date(String(h.updatedAt)).toLocaleString() : '—'}
                                 </div>
-                                <div className={`font-medium ${hasError ? 'text-red-700' : 'text-emerald-700'}`}>
+                                <div className={`font-medium ${hasError ? 'text-neutral-500' : 'text-neutral-900'}`}>
                                   {hasError ? (language === 'zh' ? '失败' : 'Failed') : `${total} posts`}
                                 </div>
                               </div>
@@ -2307,9 +2299,9 @@ export default function App() {
                     })()}
                   </div>
 
-                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-md ring-1 ring-insta-100/50 border-t-4 border-t-insta-500">
-                    <h3 className="text-sm font-semibold text-insta-950 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-insta-500 shadow-sm" aria-hidden />
+                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-900">
+                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-neutral-900" aria-hidden />
                       {t.competitiveIg}
                     </h3>
                     {(() => {
@@ -2323,7 +2315,7 @@ export default function App() {
                         | undefined;
                       if (ig?.error) {
                         return (
-                          <div className="text-sm text-red-800 bg-red-50 border border-red-100 border-l-4 border-l-red-500 rounded-lg px-3 py-2 shadow-sm ring-1 ring-red-100/60">
+                          <div className="text-sm text-neutral-800 bg-neutral-50 border border-neutral-200 border-l-4 border-l-neutral-900 rounded-lg px-3 py-2">
                             {t.competitiveIgError}: {ig.error}
                           </div>
                         );
@@ -2362,7 +2354,7 @@ export default function App() {
                                     for (const k of accountKeys) next[k] = true;
                                     setIgFilterSelections(next);
                                   }}
-                                  className="text-xs text-orange-700 hover:underline"
+                                  className="text-xs text-neutral-700 hover:underline"
                                 >
                                   {t.competitiveFilterAllAccounts}
                                 </button>
@@ -2461,7 +2453,7 @@ export default function App() {
                               rowsByAccount.map(({ uname, rows }) =>
                                 rows.length === 0 ? null : (
                                   <div key={uname}>
-                                    <div className="text-xs font-medium text-orange-800 mb-2">@{uname}</div>
+                                    <div className="text-xs font-medium text-neutral-800 mb-2">@{uname}</div>
                                     <div className="space-y-2 max-h-72 overflow-y-auto">
                                       {rows.map((row, idx) => {
                                         const caption = String(row.caption || '').slice(0, 200);
@@ -2480,17 +2472,17 @@ export default function App() {
                                                 href={url}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="font-medium text-stone-900 hover:text-orange-700 line-clamp-2 flex-1 min-w-0"
+                                                className="font-medium text-neutral-900 hover:text-neutral-600 line-clamp-2 flex-1 min-w-0"
                                               >
                                                 {caption || '(no caption)'}
                                               </a>
                                               {pk === 'collaboration' ? (
-                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-900 border border-violet-200 text-[10px] font-semibold shadow-sm">
+                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-neutral-100 text-neutral-800 border border-neutral-200 text-[10px] font-semibold">
                                                   {t.competitiveTagCollab}
                                                 </span>
                                               ) : null}
                                               {pk === 'repost' ? (
-                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-950 border border-amber-200 text-[10px] font-semibold shadow-sm">
+                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-neutral-200 text-neutral-900 border border-neutral-300 text-[10px] font-semibold">
                                                   {t.competitiveTagRepost}
                                                 </span>
                                               ) : null}
@@ -2528,7 +2520,7 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-semibold tracking-tight text-stone-800 flex flex-wrap items-center gap-2">
                     {t.socialDashTitle}
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-insta-100 text-insta-900 border border-insta-200/80 shadow-sm">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-900 border border-neutral-200">
                       Instagram
                     </span>
                   </h2>
@@ -2544,7 +2536,7 @@ export default function App() {
                   type="button"
                   onClick={handleCompetitiveSync}
                   disabled={competitiveSyncing}
-                  className="px-4 py-2.5 bg-insta-700 hover:bg-insta-800 disabled:bg-insta-300 text-white rounded-lg text-sm font-medium flex items-center gap-2 shrink-0 shadow-md shadow-insta-900/25 ring-1 ring-insta-400/35"
+                  className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white rounded-full text-sm font-medium flex items-center gap-2 shrink-0 transition-colors"
                 >
                   {competitiveSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
                   {competitiveSyncing ? t.competitiveSyncing : t.competitiveSync}
@@ -2567,9 +2559,9 @@ export default function App() {
                   </p>
                   <p className="text-xs text-stone-400">{t.socialSec1FollowersNote}</p>
 
-                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-md ring-1 ring-insta-100/50 border-t-4 border-t-insta-500">
-                    <h3 className="text-sm font-semibold text-insta-950 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-insta-500 shadow-sm" aria-hidden />
+                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-900">
+                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-neutral-900" aria-hidden />
                       {t.socialSec1Title}
                     </h3>
                     <div className="overflow-x-auto">
@@ -2592,9 +2584,9 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-md ring-1 ring-violet-100/60 border-t-4 border-t-violet-500">
-                    <h3 className="text-sm font-semibold text-violet-950 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-violet-500 shadow-sm" aria-hidden />
+                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-700">
+                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-neutral-700" aria-hidden />
                       {t.socialSec2Title}
                     </h3>
                     <div className="grid sm:grid-cols-2 gap-4">
@@ -2603,28 +2595,28 @@ export default function App() {
                         <ul className="space-y-1.5 text-sm text-stone-700">
                           <li className="flex justify-between gap-2 items-center">
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-900" aria-hidden />
                               {t.socialKindOriginal}
                             </span>
-                            <span className="tabular-nums font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                            <span className="tabular-nums font-semibold text-neutral-900 bg-neutral-50 px-2 py-0.5 rounded-md border border-neutral-200">
                               {socialDashboard.contentMix.original}
                             </span>
                           </li>
                           <li className="flex justify-between gap-2 items-center">
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-violet-500" aria-hidden />
+                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-600" aria-hidden />
                               {t.socialKindCollab}
                             </span>
-                            <span className="tabular-nums font-semibold text-violet-800 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-100">
+                            <span className="tabular-nums font-semibold text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded-md border border-neutral-200">
                               {socialDashboard.contentMix.collaboration}
                             </span>
                           </li>
                           <li className="flex justify-between gap-2 items-center">
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" aria-hidden />
                               {t.socialKindRepost}
                             </span>
-                            <span className="tabular-nums font-semibold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                            <span className="tabular-nums font-semibold text-neutral-700 bg-neutral-50 px-2 py-0.5 rounded-md border border-neutral-300">
                               {socialDashboard.contentMix.repost}
                             </span>
                           </li>
@@ -2659,33 +2651,33 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-md ring-1 ring-cyan-100/60 border-t-4 border-t-cyan-500">
-                    <h3 className="text-sm font-semibold text-cyan-950 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-cyan-500 shadow-sm" aria-hidden />
+                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-500">
+                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-neutral-500" aria-hidden />
                       {t.socialSec3Title}
                     </h3>
                     <div className="grid sm:grid-cols-2 gap-3 text-sm mb-4">
-                      <div className="rounded-lg bg-rose-50 border border-rose-100 px-3 py-2 ring-1 ring-rose-100/50">
-                        <div className="text-xs text-rose-700 font-medium">{t.socialSec3TotalLikes}</div>
-                        <div className="text-lg font-semibold text-rose-950 tabular-nums">
+                      <div className="rounded-lg bg-neutral-50 border border-neutral-200 px-3 py-2">
+                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3TotalLikes}</div>
+                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
                           {Math.round(socialDashboard.engagement.totalLikes).toLocaleString()}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-sky-50 border border-sky-100 px-3 py-2 ring-1 ring-sky-100/50">
-                        <div className="text-xs text-sky-700 font-medium">{t.socialSec3TotalComments}</div>
-                        <div className="text-lg font-semibold text-sky-950 tabular-nums">
+                      <div className="rounded-lg bg-neutral-100 border border-neutral-200 px-3 py-2">
+                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3TotalComments}</div>
+                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
                           {Math.round(socialDashboard.engagement.totalComments).toLocaleString()}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-orange-50 border border-orange-100 px-3 py-2 ring-1 ring-orange-100/50">
-                        <div className="text-xs text-orange-800 font-medium">{t.socialSec3AvgLikes}</div>
-                        <div className="text-lg font-semibold text-orange-950 tabular-nums">
+                      <div className="rounded-lg bg-neutral-50 border border-neutral-300 px-3 py-2">
+                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3AvgLikes}</div>
+                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
                           {socialDashboard.engagement.avgLikes.toFixed(1)}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-teal-50 border border-teal-100 px-3 py-2 ring-1 ring-teal-100/50">
-                        <div className="text-xs text-teal-800 font-medium">{t.socialSec3AvgComments}</div>
-                        <div className="text-lg font-semibold text-teal-950 tabular-nums">
+                      <div className="rounded-lg bg-neutral-100 border border-neutral-300 px-3 py-2">
+                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3AvgComments}</div>
+                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
                           {socialDashboard.engagement.avgComments.toFixed(1)}
                         </div>
                       </div>
@@ -2715,9 +2707,9 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-md ring-1 ring-amber-100/60 border-t-4 border-t-amber-500">
-                    <h3 className="text-sm font-semibold text-amber-950 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-amber-500 shadow-sm" aria-hidden />
+                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-400">
+                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-neutral-400" aria-hidden />
                       {t.socialSec4Title}
                     </h3>
                     <dl className="grid sm:grid-cols-2 gap-3 text-sm text-stone-700">
@@ -2779,7 +2771,7 @@ export default function App() {
                   value={notionApiKey}
                   onChange={(e) => setNotionApiKey(e.target.value)}
                   placeholder="secret_..."
-                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                 />
               </div>
               
@@ -2790,7 +2782,7 @@ export default function App() {
                   value={notionDbId}
                   onChange={(e) => setNotionDbId(e.target.value)}
                   placeholder="e.g. 1234567890abcdef1234567890abcdef"
-                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-reddit-500/20 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
                 />
               </div>
             </div>
