@@ -15,11 +15,13 @@
     "start": "node dist/server.cjs"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.6",
     "@google/genai": "^1.29.0",
     "@notionhq/client": "^5.14.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vercel/node": "^3.2.29",
     "@vitejs/plugin-react": "^5.0.4",
+    "ai": "^7.0.11",
     "apify-client": "^2.22.3",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
