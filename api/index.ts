@@ -11,6 +11,8 @@ import {
   normalizeAiProvider,
   suggestSubredditsForIdeas,
 } from "../lib/llm.js";
+import { chat as agentChat, type ChatResult } from "../lib/agent.js";
+import type { ModelMessage } from "ai";
 /** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败 */
 
 /** 本地：.data/monitor-cache.json；Vercel 只读 /var/task，可写目录为 /tmp */
@@ -26,6 +28,35 @@ app.use(express.json({ limit: "50mb" }));
 // API routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { messages } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ success: false, error: "Missing messages[]" });
+    }
+
+    const coreMessages: ModelMessage[] = messages.map((m: any) => ({
+      role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+      content: String(m.content ?? ""),
+    }));
+
+    const result: ChatResult = await agentChat(coreMessages);
+
+    res.json({
+      success: true,
+      response: result.response,
+      toolCalls: result.toolCalls.map((tc) => ({
+        tool: tc.toolName,
+        input: tc.input,
+        output: tc.output,
+      })),
+    });
+  } catch (error: any) {
+    console.error("[agent] chat error:", error);
+    res.status(500).json({ success: false, error: error.message || "Agent chat failed" });
+  }
 });
 
 app.post("/api/analyze", async (req, res) => {

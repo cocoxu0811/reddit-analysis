@@ -20,6 +20,7 @@ import {
   ArrowRight,
   BarChart2,
   LayoutDashboard,
+  CheckCircle2,
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import Papa from 'papaparse';
@@ -32,6 +33,54 @@ import {
 } from './contentToneDrafts';
 
 type AiProvider = 'gemini' | 'minimax';
+
+type AgentToolStep = {
+  tool: string;
+  status: 'running' | 'done' | 'error';
+  input?: unknown;
+  output?: unknown;
+};
+
+type AgentToolCallResponse = {
+  tool: string;
+  input?: unknown;
+  output?: unknown;
+};
+
+function mapRawIdeasToContentIdeas(rawIdeas: unknown[]): ContentIdea[] {
+  return rawIdeas.map((raw: any) => ({
+    title: String(raw.title ?? ''),
+    angle: String(raw.angle ?? ''),
+    basedOn: Array.isArray(raw.basedOn) ? raw.basedOn.map(String) : [],
+    content: {
+      postTitle: String(raw.postTitle ?? ''),
+      postBody: String(raw.postBody ?? ''),
+      suggestedSubreddit: raw.suggestedSubreddit ? String(raw.suggestedSubreddit) : undefined,
+    },
+  }));
+}
+
+function extractIdeasFromToolCalls(toolCalls: AgentToolCallResponse[]): ContentIdea[] | null {
+  for (let i = toolCalls.length - 1; i >= 0; i--) {
+    const tc = toolCalls[i];
+    if (tc.tool === 'generate_content_from_prompt' || tc.tool === 'generate_content_ideas') {
+      const output = tc.output as { ideas?: unknown[] } | null;
+      if (output && Array.isArray(output.ideas) && output.ideas.length > 0) {
+        return mapRawIdeasToContentIdeas(output.ideas);
+      }
+    }
+  }
+  return null;
+}
+
+function buildAgentStepsFromToolCalls(toolCalls: AgentToolCallResponse[]): AgentToolStep[] {
+  return toolCalls.map((tc) => ({
+    tool: tc.tool,
+    status: 'done' as const,
+    input: tc.input,
+    output: tc.output,
+  }));
+}
 
 interface Report {
   summary: string;
@@ -289,6 +338,12 @@ const translations = {
     promptPlaceholder: "e.g. r/startups Write 6 posts about how to validate a SaaS idea",
     promptGenerate: "Generate",
     promptHint: "Enter r/subreddit + your instruction to generate content directly, no analysis report needed.",
+    agentThinking: "Agent is planning…",
+    toolSearchReddit: "Searching Reddit for style examples",
+    toolGenerateContent: "Generating post drafts",
+    toolDone: "Done",
+    agentFallbackNotice: "Agent unavailable — using direct mode (no search step)",
+    agentNoIdeas: "Agent did not return post drafts",
     basedOnPrompt: "Generated from prompt",
     contentToneLabel: "Draft tone",
     contentToneHint:
@@ -474,6 +529,12 @@ const translations = {
     promptPlaceholder: "例如：r/startups 帮我写6条关于如何验证SaaS想法的帖子",
     promptGenerate: "生成",
     promptHint: "输入 r/subreddit + 指令即可直接生成内容，无需分析报告。",
+    agentThinking: "Agent 正在规划…",
+    toolSearchReddit: "搜索 Reddit 范文",
+    toolGenerateContent: "生成帖子草案",
+    toolDone: "完成",
+    agentFallbackNotice: "Agent 不可用，已切换直连模式（无搜索步骤）",
+    agentNoIdeas: "Agent 未返回帖子草案",
     basedOnPrompt: "基于输入指令生成",
     contentToneLabel: "发帖语气",
     contentToneHint: "影响下方所有选题与正文草案：疑惑、提问、推荐、吐槽等常见 Reddit 情绪向。",
@@ -644,6 +705,7 @@ export default function App() {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [contentIdeas, setContentIdeas] = useState<ContentIdea[]>([]);
   const [contentSubSuggesting, setContentSubSuggesting] = useState(false);
+  const [agentSteps, setAgentSteps] = useState<AgentToolStep[]>([]);
   const [contentPromptInput, setContentPromptInput] = useState('');
   const [contentPromptSource, setContentPromptSource] = useState<string | null>(null);
   const [contentTone, setContentTone] = useState<ContentToneId>(() => {
@@ -720,6 +782,57 @@ export default function App() {
     competitive: { title: t.taskHeroCompetitive, subtitle: t.taskHeroCompetitiveSub },
     social: { title: t.taskHeroSocial, subtitle: t.taskHeroSocialSub },
   }[activePage];
+
+  const getAgentToolLabel = (tool: string) => {
+    switch (tool) {
+      case 'search_reddit':
+        return t.toolSearchReddit;
+      case 'generate_content_from_prompt':
+      case 'generate_content_ideas':
+        return t.toolGenerateContent;
+      default:
+        return tool;
+    }
+  };
+
+  const getAgentToolDetail = (step: AgentToolStep) => {
+    const out = step.output as Record<string, unknown> | null | undefined;
+    if (step.tool === 'search_reddit' && out) {
+      const examples = out.qualifiedExampleCount ?? out.postCount;
+      if (examples != null) {
+        return language === 'zh' ? `${examples} 条范文` : `${examples} examples`;
+      }
+    }
+    if (
+      (step.tool === 'generate_content_from_prompt' || step.tool === 'generate_content_ideas') &&
+      out
+    ) {
+      const count =
+        out.count ??
+        (Array.isArray(out.ideas) ? (out.ideas as unknown[]).length : undefined);
+      if (count != null) {
+        return language === 'zh' ? `${count} 篇` : `${count} posts`;
+      }
+    }
+    return t.toolDone;
+  };
+
+  const fetchDirectContentIdeas = async (
+    subreddit: string,
+    instruction: string,
+    count: number
+  ): Promise<ContentIdea[]> => {
+    const res = await fetch('/api/content/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subreddit, instruction, language, tone: contentTone, aiProvider, count }),
+    });
+    const data = (await res.json()) as { success?: boolean; ideas?: unknown[]; error?: string };
+    if (!res.ok || data.success === false || !Array.isArray(data.ideas)) {
+      throw new Error(data.error || 'Generation failed');
+    }
+    return mapRawIdeasToContentIdeas(data.ideas);
+  };
   const socialDashboard = useMemo(() => {
     const ig = competitiveCache?.instagram;
     if (!ig || typeof ig !== 'object') return null;
@@ -985,34 +1098,57 @@ export default function App() {
 
     const reqSeq = ++contentSuggestSeqRef.current;
     setContentIdeas([]);
+    setAgentSteps([]);
     setContentSubSuggesting(true);
     setContentPromptSource(subreddit);
+
+    const userMessage =
+      language === 'zh'
+        ? `请为 ${subreddit} 生成 ${count} 篇 Reddit 帖子。\n指令：${instruction}\n语气：${contentTone}\n语言：zh\n请先调用 search_reddit 搜索范文，再调用 generate_content_from_prompt 生成内容。`
+        : `Generate ${count} Reddit posts for ${subreddit}.\nInstruction: ${instruction}\nTone: ${contentTone}\nLanguage: en\nSearch Reddit for style examples first (search_reddit), then generate_content_from_prompt.`;
+
     try {
-      const res = await fetch('/api/content/generate', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subreddit, instruction, language, tone: contentTone, aiProvider, count }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: userMessage }] }),
       });
-      const data = (await res.json()) as { success?: boolean; ideas?: any[]; error?: string };
+      const data = (await res.json()) as {
+        success?: boolean;
+        toolCalls?: AgentToolCallResponse[];
+        response?: string;
+        error?: string;
+      };
+
       if (reqSeq !== contentSuggestSeqRef.current) return;
-      if (!res.ok || data.success === false || !Array.isArray(data.ideas)) {
-        throw new Error(data.error || 'Generation failed');
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || 'Agent chat failed');
       }
-      setContentIdeas(
-        data.ideas.map((raw: any) => ({
-          title: String(raw.title ?? ''),
-          angle: String(raw.angle ?? ''),
-          basedOn: Array.isArray(raw.basedOn) ? raw.basedOn.map(String) : [],
-          content: {
-            postTitle: String(raw.postTitle ?? ''),
-            postBody: String(raw.postBody ?? ''),
-            suggestedSubreddit: raw.suggestedSubreddit ? String(raw.suggestedSubreddit) : undefined,
-          },
-        }))
-      );
-    } catch (error: any) {
-      console.warn('[content] prompt generation failed:', error?.message || error);
-      setContentIdeas([]);
+
+      const toolCalls = Array.isArray(data.toolCalls) ? data.toolCalls : [];
+      setAgentSteps(buildAgentStepsFromToolCalls(toolCalls));
+
+      const ideas = extractIdeasFromToolCalls(toolCalls);
+      if (ideas && ideas.length > 0) {
+        setContentIdeas(ideas);
+        return;
+      }
+
+      throw new Error(data.response || t.agentNoIdeas);
+    } catch (agentError: any) {
+      console.warn('[content] agent failed, falling back:', agentError?.message || agentError);
+      if (reqSeq !== contentSuggestSeqRef.current) return;
+      toast.error(t.agentFallbackNotice);
+      try {
+        const ideas = await fetchDirectContentIdeas(subreddit, instruction, count);
+        if (reqSeq !== contentSuggestSeqRef.current) return;
+        setAgentSteps([]);
+        setContentIdeas(ideas);
+      } catch (fallbackError: any) {
+        console.warn('[content] prompt generation failed:', fallbackError?.message || fallbackError);
+        setContentIdeas([]);
+        setAgentSteps([]);
+      }
     } finally {
       if (reqSeq === contentSuggestSeqRef.current) setContentSubSuggesting(false);
     }
@@ -1767,6 +1903,47 @@ export default function App() {
                   ? `${t.basedOnPrompt} — ${contentPromptSource}`
                   : report ? t.basedOnReport : selectedHistory ? t.basedOnHistory : t.contentEmpty}
               </div>
+
+              {(contentSubSuggesting || agentSteps.length > 0) && (
+                <div className="ym-agent-timeline ym-card p-4 space-y-3">
+                  {contentSubSuggesting && agentSteps.length === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-2 text-sm text-[var(--ym-muted-foreground)]">
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--ym-primary)]" />
+                      {t.agentThinking}
+                    </div>
+                  ) : (
+                    agentSteps.map((step, idx) => (
+                      <div key={`${step.tool}-${idx}`} className="ym-agent-step">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 shrink-0">
+                            {step.status === 'done' ? (
+                              <CheckCircle2 className="w-4 h-4 text-[var(--ym-gray1)]" />
+                            ) : step.status === 'error' ? (
+                              <AlertCircle className="w-4 h-4 text-[var(--ym-destructive)]" />
+                            ) : (
+                              <Loader2 className="w-4 h-4 animate-spin text-[var(--ym-primary)]" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-[var(--ym-foreground)]">
+                              {getAgentToolLabel(step.tool)}
+                            </div>
+                            {step.status === 'done' && (
+                              <div className="text-xs text-[var(--ym-muted-foreground)] mt-0.5">
+                                {getAgentToolDetail(step)}
+                              </div>
+                            )}
+                          </div>
+                          {step.status === 'done' && (
+                            <span className="ym-badge shrink-0">{t.toolDone}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
               {!contentSourceReport && !contentSubSuggesting && contentIdeas.length === 0 ? (
                 <div className="h-[260px] flex items-center justify-center text-[var(--ym-caption)] border-2 border-dashed border-[var(--ym-input-border)] rounded-[16px]">
                   {t.contentEmpty}
@@ -1788,13 +1965,6 @@ export default function App() {
                       </div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-[var(--ym-muted-foreground)]">
-                    <svg className="w-4 h-4 animate-spin text-[var(--ym-primary)]" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    {language === 'zh' ? 'AI 正在生成内容，请稍候…' : 'AI is generating content, please wait…'}
-                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">

@@ -361,6 +361,17 @@ body {
   transform: translateY(-1px);
 }
 
+.ym-agent-timeline {
+  background: rgba(255, 255, 255, 0.54);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.ym-agent-step + .ym-agent-step {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ym-subtle-border);
+}
+
 .font-display {
   font-family: var(--ym-font-display);
 }
