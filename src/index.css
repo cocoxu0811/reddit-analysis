@@ -128,6 +128,30 @@
     --ym-board-card: #141414;
     --ym-snip-card: rgba(255, 255, 255, 0.04);
   }
+
+  .ym-task-bg {
+    background-image:
+      radial-gradient(ellipse 90% 60% at 15% 8%, rgba(60, 80, 120, 0.35) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 85% 12%, rgba(50, 90, 60, 0.25) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 40% at 50% 95%, rgba(90, 70, 50, 0.18) 0%, transparent 45%);
+  }
+
+  .ym-header {
+    background: rgba(26, 26, 26, 0.82);
+  }
+
+  .ym-task-prompt {
+    background: rgba(26, 26, 26, 0.72);
+  }
+
+  .ym-mode-tab {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .ym-mode-tab-active {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.92);
+  }
 }
 
 body {
@@ -136,6 +160,183 @@ body {
   color: var(--ym-foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── YouMind /new-task page shell ── */
+.ym-task-bg {
+  background-color: var(--ym-background);
+  background-image:
+    radial-gradient(ellipse 90% 60% at 15% 8%, rgba(198, 220, 255, 0.5) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 12%, rgba(220, 255, 200, 0.38) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 95%, rgba(255, 236, 210, 0.28) 0%, transparent 45%);
+}
+
+.ym-header {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ym-input-border);
+}
+
+.ym-task-hero {
+  text-align: center;
+  padding: 1.5rem 0 1.25rem;
+}
+
+.ym-task-title {
+  font-family: var(--ym-font-display);
+  font-size: clamp(2.25rem, 5vw, 4.5rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--ym-foreground);
+}
+
+.ym-task-subtitle {
+  margin-top: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--ym-muted-foreground);
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ym-ready-label {
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ym-muted-foreground);
+  margin-bottom: 0.75rem;
+}
+
+.ym-task-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+  background: rgba(255, 255, 255, 0.54);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ym-input-border);
+  border-radius: var(--ym-radius-prompt);
+  box-shadow: var(--ym-shadow-prompt);
+}
+
+.ym-task-prompt-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--ym-font-ui);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--ym-foreground);
+  outline: none;
+  min-height: 2.5rem;
+  padding: 0.375rem 0;
+}
+
+.ym-task-prompt-input::placeholder {
+  color: var(--ym-muted-foreground);
+}
+
+.ym-task-prompt-input:disabled {
+  opacity: 0.6;
+}
+
+.ym-task-start-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  padding: 0.25rem 1.25rem;
+  min-height: 2.25rem;
+  border: none;
+  border-radius: var(--ym-radius-pill);
+  background: var(--ym-primary);
+  color: var(--ym-primary-foreground);
+  font-family: var(--ym-font-ui);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.ym-task-start-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.ym-task-start-btn:disabled {
+  background: var(--ym-gray3);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+
+.ym-mode-tabs-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0 1.5rem;
+}
+
+.ym-mode-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.125rem;
+  padding: 0.25rem;
+  max-width: 100%;
+}
+
+.ym-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--ym-radius-pill);
+  border: none;
+  background: transparent;
+  color: rgba(31, 31, 31, 0.72);
+  font-family: var(--ym-font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.ym-mode-tab:hover {
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--ym-foreground);
+}
+
+.ym-mode-tab-active {
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(31, 31, 31, 0.88);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ym-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.ym-template-card {
+  border-radius: var(--ym-radius-card);
+  border: 1px solid var(--ym-input-border);
+  background: var(--ym-surface);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ym-template-card:hover {
+  box-shadow: var(--ym-shadow-prompt);
+  transform: translateY(-1px);
 }
 
 .font-display {

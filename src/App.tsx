@@ -238,6 +238,20 @@ function getDemoReport(lang: 'en' | 'zh'): Report {
 const translations = {
   en: {
     title: "Reddit Analyzer",
+    taskHeroCreate: "Create bolder",
+    taskHeroCreateSub: "Turn Reddit insights into posts that sound human.",
+    taskHeroAnalyze: "Analyze deeper",
+    taskHeroAnalyzeSub: "Upload discussions and extract pain points, brands, and trends.",
+    taskHeroMonitor: "Monitor smarter",
+    taskHeroMonitorSub: "Track subreddits and label posts with AI-assisted intents.",
+    taskHeroHistory: "Review past",
+    taskHeroHistorySub: "Revisit saved analyses and export what you need.",
+    taskHeroCompetitive: "Track competitors",
+    taskHeroCompetitiveSub: "Sync Instagram pilots and compare posting patterns.",
+    taskHeroSocial: "Social insights",
+    taskHeroSocialSub: "Dashboards built from your competitive Instagram cache.",
+    readyToCreate: "Ready to create?",
+    promptStart: "Start",
     dataInput: "Data Input",
     uploadText: "Upload JSON, CSV or Text file",
     pasteRedditLink: "Paste Reddit link",
@@ -409,6 +423,20 @@ const translations = {
   },
   zh: {
     title: "Reddit 数据分析器",
+    taskHeroCreate: "大胆创作",
+    taskHeroCreateSub: "把 Reddit 洞察变成更有人味的发帖草案。",
+    taskHeroAnalyze: "深度分析",
+    taskHeroAnalyzeSub: "上传讨论数据，提取痛点、品牌与趋势。",
+    taskHeroMonitor: "智能监控",
+    taskHeroMonitorSub: "追踪版块动态，并用 AI 归纳用户意图。",
+    taskHeroHistory: "回顾历史",
+    taskHeroHistorySub: "查看已保存的分析结果并按需导出。",
+    taskHeroCompetitive: "竞品追踪",
+    taskHeroCompetitiveSub: "同步 Instagram 竞品账号并对比发帖节奏。",
+    taskHeroSocial: "社交洞察",
+    taskHeroSocialSub: "基于竞品缓存构建 Instagram 数据看板。",
+    readyToCreate: "准备开始？",
+    promptStart: "开始",
     dataInput: "数据输入",
     uploadText: "上传 JSON, CSV 或文本文件",
     pasteRedditLink: "粘贴 Reddit 链接",
@@ -671,6 +699,24 @@ export default function App() {
   });
 
   const t = translations[language];
+
+  const navItems = [
+    { id: 'monitor' as const, icon: Rss, label: t.navMonitor },
+    { id: 'analyze' as const, icon: LayoutTemplate, label: t.navAnalyze },
+    { id: 'history' as const, icon: History, label: t.navHistory },
+    { id: 'content' as const, icon: PenSquare, label: t.navContent },
+    { id: 'competitive' as const, icon: BarChart2, label: t.navCompetitive },
+    { id: 'social' as const, icon: LayoutDashboard, label: t.navSocial },
+  ];
+
+  const pageHero = {
+    monitor: { title: t.taskHeroMonitor, subtitle: t.taskHeroMonitorSub },
+    analyze: { title: t.taskHeroAnalyze, subtitle: t.taskHeroAnalyzeSub },
+    history: { title: t.taskHeroHistory, subtitle: t.taskHeroHistorySub },
+    content: { title: t.taskHeroCreate, subtitle: t.taskHeroCreateSub },
+    competitive: { title: t.taskHeroCompetitive, subtitle: t.taskHeroCompetitiveSub },
+    social: { title: t.taskHeroSocial, subtitle: t.taskHeroSocialSub },
+  }[activePage];
   const socialDashboard = useMemo(() => {
     const ig = competitiveCache?.instagram;
     if (!ig || typeof ig !== 'object') return null;
@@ -1429,19 +1475,19 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen bg-[var(--ym-background)] text-[var(--ym-foreground)] font-sans flex flex-col overflow-hidden">
+    <div className="h-screen ym-task-bg text-[var(--ym-foreground)] font-sans flex flex-col overflow-hidden">
       <Toaster position="top-right" />
       
-      <header className="bg-[var(--ym-surface)] border-b border-[var(--ym-input-border)] shrink-0">
-        <div className="w-full px-6 h-16 flex items-center justify-between">
+      <header className="ym-header shrink-0">
+        <div className="w-full px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[var(--ym-primary)] rounded-[12px] flex items-center justify-center">
-              <Database className="w-5 h-5 text-[var(--ym-primary-foreground)]" />
+            <div className="w-9 h-9 bg-[var(--ym-primary)] rounded-[10px] flex items-center justify-center">
+              <Database className="w-4 h-4 text-[var(--ym-primary-foreground)]" />
             </div>
-            <h1 className="font-display text-[1.375rem] font-medium tracking-tight text-[var(--ym-foreground)]">{t.title}</h1>
+            <h1 className="font-display text-lg font-medium tracking-tight text-[var(--ym-foreground)]">{t.title}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--ym-muted-foreground)] bg-[var(--ym-muted)] border border-[var(--ym-input-border)] rounded-full transition-colors hover:bg-[var(--ym-gray4)]">
+            <label className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--ym-muted-foreground)] bg-[var(--ym-muted)] border border-[var(--ym-input-border)] rounded-full transition-colors hover:bg-[var(--ym-gray4)]">
               <span className="text-xs">{t.aiProviderLabel}</span>
               <select
                 value={aiProvider}
@@ -1469,73 +1515,33 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 flex overflow-hidden">
-        <aside className="w-72 shrink-0 border-r border-[var(--ym-input-border)] bg-[var(--ym-background)] p-4 overflow-y-auto">
-          <div className="space-y-6">
-            <div>
-              <div className="ym-section-label">{t.navGroupReddit}</div>
-              <div className="space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => setActivePage('monitor')}
-                  className={`ym-nav-item ${activePage === 'monitor' ? 'ym-nav-item-active' : ''}`}
-                >
-                  <Rss className="w-4 h-4 shrink-0" />
-                  {t.navMonitor}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePage('analyze')}
-                  className={`ym-nav-item ${activePage === 'analyze' ? 'ym-nav-item-active' : ''}`}
-                >
-                  <LayoutTemplate className="w-4 h-4 shrink-0" />
-                  {t.navAnalyze}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePage('history')}
-                  className={`ym-nav-item ${activePage === 'history' ? 'ym-nav-item-active' : ''}`}
-                >
-                  <History className="w-4 h-4 shrink-0" />
-                  {t.navHistory}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePage('content')}
-                  className={`ym-nav-item ${activePage === 'content' ? 'ym-nav-item-active' : ''}`}
-                >
-                  <PenSquare className="w-4 h-4 shrink-0" />
-                  {t.navContent}
-                </button>
-              </div>
-            </div>
-            <div>
-              <div className="ym-section-label">{t.navGroupInstagram}</div>
-              <div className="space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => setActivePage('competitive')}
-                  className={`ym-nav-item ${activePage === 'competitive' ? 'ym-nav-item-active' : ''}`}
-                >
-                  <BarChart2 className="w-4 h-4 shrink-0" />
-                  {t.navCompetitive}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePage('social')}
-                  className={`ym-nav-item ${activePage === 'social' ? 'ym-nav-item-active' : ''}`}
-                >
-                  <LayoutDashboard className="w-4 h-4 shrink-0" />
-                  {t.navSocial}
-                </button>
-              </div>
-            </div>
+      <main className="flex-1 overflow-y-auto">
+        <div className={`mx-auto px-4 sm:px-6 ${activePage === 'analyze' ? 'max-w-7xl' : 'max-w-5xl'}`}>
+          <div className="ym-task-hero">
+            <h2 className="ym-task-title">{pageHero.title}</h2>
+            <p className="ym-task-subtitle">{pageHero.subtitle}</p>
           </div>
-        </aside>
+
+          <nav className="ym-mode-tabs-wrap" aria-label="Navigation">
+            <div className="ym-mode-tabs">
+              {navItems.map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActivePage(id)}
+                  className={`ym-mode-tab ${activePage === id ? 'ym-mode-tab-active' : ''}`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </nav>
+        </div>
 
         {activePage === 'analyze' ? (
-          <section className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--ym-input-border)] flex flex-col bg-[var(--ym-background)]">
+          <section className="flex flex-col lg:flex-row overflow-hidden max-w-7xl mx-auto px-4 sm:px-6 pb-8 min-h-[520px]">
+            <div className="w-full lg:w-1/2 py-4 lg:py-6 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--ym-input-border)] flex flex-col">
               <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col space-y-6">
                 <h2 className="text-lg font-medium flex items-center gap-2 text-[var(--ym-foreground)] shrink-0">
                   <FileText className="w-5 h-5 text-[var(--ym-muted-foreground)]" />
@@ -1618,15 +1624,15 @@ export default function App() {
               </div>
             </div>
 
-            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto bg-[var(--ym-surface)]">
+            <div className="w-full lg:w-1/2 py-4 lg:py-6 lg:pl-8 overflow-y-auto">
               <div className="max-w-2xl mx-auto w-full h-full">
                 {renderReportContent(report, true)}
               </div>
             </div>
           </section>
         ) : activePage === 'history' ? (
-          <section className="flex-1 p-6 lg:p-8 overflow-hidden bg-[var(--ym-background)]">
-            <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 h-full">
+          <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-10">
+            <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 min-h-[480px]">
               <div className="ym-card p-4 overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-medium text-[var(--ym-foreground)]">{t.historyTitle}</h2>
@@ -1684,59 +1690,56 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'content' ? (
-          <section className="flex-1 p-6 lg:p-8 overflow-y-auto bg-[var(--ym-background)]">
-            <div className="max-w-4xl mx-auto space-y-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <h2 className="ym-page-title">{t.contentTitle}</h2>
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm text-[var(--ym-foreground)]">
-                    <span className="whitespace-nowrap font-medium">{t.contentToneLabel}</span>
-                    <select
-                      value={contentTone}
-                      onChange={(e) => setContentTone(e.target.value as ContentToneId)}
-                      className="ym-select !w-auto"
-                    >
-                      <option value="curious">{t.toneCurious}</option>
-                      <option value="question">{t.toneQuestion}</option>
-                      <option value="recommend">{t.toneRecommend}</option>
-                      <option value="rant">{t.toneRant}</option>
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => generateContentIdeas(contentSourceReport)}
-                    className="ym-btn-primary px-4 py-2 text-sm"
+          <section className="max-w-3xl mx-auto px-4 sm:px-6 pb-12 space-y-6">
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-[var(--ym-foreground)]">
+                  <span className="whitespace-nowrap font-medium">{t.contentToneLabel}</span>
+                  <select
+                    value={contentTone}
+                    onChange={(e) => setContentTone(e.target.value as ContentToneId)}
+                    className="ym-select !w-auto"
                   >
-                    {t.regenerate}
-                  </button>
-                </div>
+                    <option value="curious">{t.toneCurious}</option>
+                    <option value="question">{t.toneQuestion}</option>
+                    <option value="recommend">{t.toneRecommend}</option>
+                    <option value="rant">{t.toneRant}</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => generateContentIdeas(contentSourceReport)}
+                  className="ym-btn-outline !min-h-0 px-3 py-2 text-sm"
+                >
+                  {t.regenerate}
+                </button>
               </div>
-              <p className="text-xs text-[var(--ym-muted-foreground)]">{t.contentToneHint}</p>
+              <p className="text-xs text-center text-[var(--ym-muted-foreground)]">{t.contentToneHint}</p>
 
-              <div className="ym-prompt-box space-y-2">
-                <div className="flex gap-2">
+              <div>
+                <p className="ym-ready-label">{t.readyToCreate}</p>
+                <div className="ym-task-prompt">
                   <input
                     type="text"
                     value={contentPromptInput}
                     onChange={(e) => setContentPromptInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !contentSubSuggesting) generateFromPrompt(); }}
                     placeholder={t.promptPlaceholder}
-                    className="ym-input flex-1 !border-0 !bg-transparent focus:!border-transparent !shadow-none"
+                    className="ym-task-prompt-input"
                     disabled={contentSubSuggesting}
                   />
                   <button
                     type="button"
                     onClick={generateFromPrompt}
                     disabled={contentSubSuggesting || !contentPromptInput.trim()}
-                    className="ym-btn-primary px-5 py-2.5 shrink-0"
+                    className="ym-task-start-btn"
                   >
-                    {t.promptGenerate}
+                    {contentSubSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : t.promptStart}
                   </button>
                 </div>
-                <p className="text-xs text-[var(--ym-muted-foreground)]">{t.promptHint}</p>
+                <p className="text-xs text-center text-[var(--ym-muted-foreground)] mt-2">{t.promptHint}</p>
               </div>
 
-              <div className="text-sm text-[var(--ym-muted-foreground)]">
+              <div className="text-sm text-center text-[var(--ym-muted-foreground)]">
                 {contentPromptSource
                   ? `${t.basedOnPrompt} — ${contentPromptSource}`
                   : report ? t.basedOnReport : selectedHistory ? t.basedOnHistory : t.contentEmpty}
@@ -1823,18 +1826,12 @@ export default function App() {
                   ))}
                 </div>
               )}
-            </div>
           </section>
         ) : activePage === 'monitor' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--ym-background)]">
-            <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
-              <div>
-                <h2 className="ym-page-title">{t.monitorTitle}</h2>
-                <p className="text-sm text-[var(--ym-muted-foreground)] mt-1">{t.monitorHelp}</p>
-                <div className="mt-3 p-3 rounded-[12px] bg-[var(--ym-muted)] border border-[var(--ym-input-border)] text-sm text-[var(--ym-muted-foreground)] leading-relaxed">
+          <section className="max-w-4xl mx-auto px-4 sm:px-6 pb-10 space-y-4">
+              <div className="p-3 rounded-[12px] bg-[var(--ym-muted)] border border-[var(--ym-input-border)] text-sm text-[var(--ym-muted-foreground)] leading-relaxed">
                   {t.monitorCompetitiveHint}
                 </div>
-              </div>
 
               <div className="ym-card p-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
@@ -2175,20 +2172,13 @@ export default function App() {
                   ))
                 )}
               </div>
-            </div>
           </section>
         ) : activePage === 'competitive' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--ym-background)]">
-            <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
+          <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-10 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
                 <div>
-                  <h2 className="ym-page-title flex flex-wrap items-center gap-2">
-                    {t.competitiveTitle}
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--ym-gray4)] text-[var(--ym-foreground)] border border-[var(--ym-input-border)]">
-                      Instagram
-                    </span>
-                  </h2>
-                  <p className="text-sm text-[var(--ym-muted-foreground)] mt-1 max-w-2xl">{t.competitiveHelp}</p>
+                  <span className="ym-badge mb-2">Instagram</span>
+                  <p className="text-sm text-[var(--ym-muted-foreground)] max-w-2xl">{t.competitiveHelp}</p>
                   <p className="text-xs text-[var(--ym-caption)] mt-2">{t.competitiveCronNote}</p>
                 </div>
                 <button
@@ -2458,20 +2448,13 @@ export default function App() {
                   </div>
                 </div>
               )}
-            </div>
           </section>
         ) : activePage === 'social' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--ym-background)]">
-            <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
+          <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-10 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
                 <div>
-                  <h2 className="ym-page-title flex flex-wrap items-center gap-2">
-                    {t.socialDashTitle}
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--ym-gray4)] text-[var(--ym-foreground)] border border-[var(--ym-input-border)]">
-                      Instagram
-                    </span>
-                  </h2>
-                  <p className="text-sm text-[var(--ym-muted-foreground)] mt-1 max-w-2xl">{t.socialDashIntro}</p>
+                  <span className="ym-badge mb-2">Instagram</span>
+                  <p className="text-sm text-[var(--ym-muted-foreground)] max-w-2xl">{t.socialDashIntro}</p>
                   <p className="text-xs text-[var(--ym-caption)] mt-2">
                     {t.competitiveLastRun}:{' '}
                     {competitiveCache?.updatedAt
@@ -2694,7 +2677,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-            </div>
           </section>
         ) : null}
       </main>
