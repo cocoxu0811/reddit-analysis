@@ -320,6 +320,28 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
+.ym-sidebar-hero {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--ym-input-border);
+}
+
+.ym-sidebar-title {
+  font-family: var(--ym-font-display);
+  font-size: 1.375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ym-foreground);
+}
+
+.ym-sidebar-subtitle {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ym-muted-foreground);
+}
+
 .ym-template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

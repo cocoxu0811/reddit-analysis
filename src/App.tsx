@@ -700,11 +700,14 @@ export default function App() {
 
   const t = translations[language];
 
-  const navItems = [
+  const redditNavItems = [
     { id: 'monitor' as const, icon: Rss, label: t.navMonitor },
     { id: 'analyze' as const, icon: LayoutTemplate, label: t.navAnalyze },
     { id: 'history' as const, icon: History, label: t.navHistory },
     { id: 'content' as const, icon: PenSquare, label: t.navContent },
+  ];
+
+  const instagramNavItems = [
     { id: 'competitive' as const, icon: BarChart2, label: t.navCompetitive },
     { id: 'social' as const, icon: LayoutDashboard, label: t.navSocial },
   ];
@@ -1515,30 +1518,50 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto">
-        <div className={`mx-auto px-4 sm:px-6 ${activePage === 'analyze' ? 'max-w-7xl' : 'max-w-5xl'}`}>
-          <div className="ym-task-hero">
-            <h2 className="ym-task-title">{pageHero.title}</h2>
-            <p className="ym-task-subtitle">{pageHero.subtitle}</p>
+      <main className="flex-1 flex overflow-hidden">
+        <aside className="w-72 shrink-0 border-r border-[var(--ym-input-border)] bg-[rgba(255,255,255,0.35)] backdrop-blur-md p-4 overflow-y-auto">
+          <div className="ym-sidebar-hero">
+            <h2 className="ym-sidebar-title">{pageHero.title}</h2>
+            <p className="ym-sidebar-subtitle">{pageHero.subtitle}</p>
           </div>
 
-          <nav className="ym-mode-tabs-wrap" aria-label="Navigation">
-            <div className="ym-mode-tabs">
-              {navItems.map(({ id, icon: Icon, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setActivePage(id)}
-                  className={`ym-mode-tab ${activePage === id ? 'ym-mode-tab-active' : ''}`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {label}
-                </button>
-              ))}
+          <nav className="space-y-6" aria-label="Navigation">
+            <div>
+              <div className="ym-section-label">{t.navGroupReddit}</div>
+              <div className="space-y-0.5">
+                {redditNavItems.map(({ id, icon: Icon, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActivePage(id)}
+                    className={`ym-nav-item ${activePage === id ? 'ym-nav-item-active' : ''}`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="ym-section-label">{t.navGroupInstagram}</div>
+              <div className="space-y-0.5">
+                {instagramNavItems.map(({ id, icon: Icon, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActivePage(id)}
+                    className={`ym-nav-item ${activePage === id ? 'ym-nav-item-active' : ''}`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </nav>
-        </div>
+        </aside>
 
+        <div className="flex-1 overflow-y-auto">
         {activePage === 'analyze' ? (
           <section className="flex flex-col lg:flex-row overflow-hidden max-w-7xl mx-auto px-4 sm:px-6 pb-8 min-h-[520px]">
             <div className="w-full lg:w-1/2 py-4 lg:py-6 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--ym-input-border)] flex flex-col">
@@ -2679,6 +2702,7 @@ export default function App() {
               )}
           </section>
         ) : null}
+        </div>
       </main>
 
       {/* Settings Modal */}
