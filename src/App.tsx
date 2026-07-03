@@ -1314,42 +1314,21 @@ export default function App() {
     return true;
   });
 
-  const emotionBadgeClass = (e: string) => {
-    const map: Record<string, string> = {
-      疑惑: 'bg-neutral-100 text-neutral-800 border-neutral-200',
-      生气: 'bg-neutral-200 text-neutral-900 border-neutral-300',
-      兴奋: 'bg-neutral-50 text-neutral-900 border-neutral-200',
-      失望: 'bg-neutral-100 text-neutral-700 border-neutral-300',
-      讽刺: 'bg-neutral-200 text-neutral-800 border-neutral-400',
-      中性: 'bg-neutral-50 text-neutral-600 border-neutral-200',
-    };
-    return map[e] || map['中性'];
-  };
+  const emotionBadgeClass = (_e: string) => 'ym-badge';
+  const categoryBadgeClass = (_c: string) => 'ym-badge';
 
-  const categoryBadgeClass = (c: string) => {
-    const map: Record<string, string> = {
-      推荐: 'bg-neutral-50 text-neutral-900 border-neutral-200',
-      吐槽: 'bg-neutral-100 text-neutral-800 border-neutral-300',
-      讨论: 'bg-neutral-50 text-neutral-700 border-neutral-200',
-      求助: 'bg-neutral-100 text-neutral-900 border-neutral-200',
-      展示: 'bg-neutral-200 text-neutral-800 border-neutral-300',
-    };
-    return map[c] || 'bg-neutral-50 text-neutral-800 border-neutral-200';
-  };
-
-  const contentIdeaTagClass = (_i: number) =>
-    'bg-neutral-100 text-neutral-800 border border-neutral-200';
+  const contentIdeaTagClass = (_i: number) => 'ym-badge';
 
   const renderReportContent = (reportData: Report | null, showExport: boolean) => (
     reportData ? (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-8">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-2xl font-semibold tracking-tight">{t.reportTitle}</h2>
+          <h2 className="ym-page-title">{t.reportTitle}</h2>
           {showExport && (
             <button
               onClick={handleExportToNotion}
               disabled={isExporting}
-              className="px-4 py-2 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2"
+              className="ym-btn-primary px-4 py-2 text-sm"
             >
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
               {t.exportBtn}
@@ -1357,44 +1336,44 @@ export default function App() {
           )}
         </div>
 
-        <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
-          <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-bold">
+        <div className="ym-card p-6">
+          <h3 className="text-[var(--ym-foreground)] font-medium mb-3 flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-full bg-[var(--ym-gray0)] text-white flex items-center justify-center text-xs font-bold">
               1
             </span>
             {t.summary}
           </h3>
-          <p className="text-[var(--md-sys-color-on-surface-variant)] text-sm leading-relaxed">{reportData.summary}</p>
+          <p className="text-[var(--ym-muted-foreground)] text-sm leading-relaxed">{reportData.summary}</p>
         </div>
 
-        <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
-          <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-full bg-neutral-800 text-white flex items-center justify-center text-xs font-bold">
+        <div className="ym-card p-6">
+          <h3 className="text-[var(--ym-foreground)] font-medium mb-3 flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-full bg-[var(--ym-gray1)] text-white flex items-center justify-center text-xs font-bold">
               2
             </span>
             {t.painPoints}
           </h3>
           <ul className="space-y-2">
             {reportData.painPoints.map((point, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-[var(--md-sys-color-on-surface)]">
-                <span className="text-neutral-500 mt-1 font-bold">•</span>
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--ym-foreground)]">
+                <span className="text-[var(--ym-muted-foreground)] mt-1 font-bold">•</span>
                 {point}
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
-          <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-full bg-neutral-700 text-white flex items-center justify-center text-xs font-bold">
+        <div className="ym-card p-6">
+          <h3 className="text-[var(--ym-foreground)] font-medium mb-3 flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-full bg-[var(--ym-gray2)] text-white flex items-center justify-center text-xs font-bold">
               3
             </span>
             {t.praisedFeatures}
           </h3>
           <ul className="space-y-2">
             {reportData.praisedFeatures.map((feature, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-[var(--md-sys-color-on-surface)]">
-                <span className="text-neutral-500 mt-1 font-bold">•</span>
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--ym-foreground)]">
+                <span className="text-[var(--ym-muted-foreground)] mt-1 font-bold">•</span>
                 {feature}
               </li>
             ))}
@@ -1402,9 +1381,9 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
-            <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-full bg-neutral-600 text-white flex items-center justify-center text-xs font-bold">
+          <div className="ym-card p-6">
+            <h3 className="text-[var(--ym-foreground)] font-medium mb-3 flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-[var(--ym-gray1)] text-white flex items-center justify-center text-xs font-bold">
                 4
               </span>
               {t.mentionedBrands}
@@ -1413,7 +1392,7 @@ export default function App() {
               {reportData.mentionedBrands.map((brand, i) => (
                 <span
                   key={i}
-                  className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] border border-[var(--md-sys-color-outline-variant)]"
+                  className="ym-badge"
                 >
                   {brand}
                 </span>
@@ -1421,9 +1400,9 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] p-6 rounded-xl">
-            <h3 className="text-[var(--md-sys-color-on-surface)] font-medium mb-3 flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-full bg-neutral-500 text-white flex items-center justify-center text-xs font-bold">
+          <div className="ym-card p-6">
+            <h3 className="text-[var(--ym-foreground)] font-medium mb-3 flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-[var(--ym-gray2)] text-white flex items-center justify-center text-xs font-bold">
                 5
               </span>
               {t.highFreqWords}
@@ -1432,7 +1411,7 @@ export default function App() {
               {reportData.highFrequencyWords.map((word, i) => (
                 <span
                   key={i}
-                  className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] border border-[var(--md-sys-color-outline-variant)]"
+                  className="ym-badge"
                 >
                   {word}
                 </span>
@@ -1442,33 +1421,32 @@ export default function App() {
         </div>
       </div>
     ) : (
-      <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-[var(--md-sys-color-outline)] space-y-4 py-20 border-2 border-dashed border-[var(--md-sys-color-outline-variant)] rounded-xl bg-[var(--md-sys-color-surface-container-low)]/50">
-        <FileText className="w-12 h-12 text-[var(--md-sys-color-outline-variant)]" />
+      <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-[var(--ym-gray2)] space-y-4 py-20 border-2 border-dashed border-[var(--ym-input-border)] rounded-xl bg-[var(--ym-board-card)]/50">
+        <FileText className="w-12 h-12 text-[var(--ym-gray3)]" />
         <p>{t.emptyState}</p>
       </div>
     )
   );
 
   return (
-    <div className="h-screen bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface)] font-sans flex flex-col overflow-hidden">
+    <div className="h-screen bg-[var(--ym-background)] text-[var(--ym-foreground)] font-sans flex flex-col overflow-hidden">
       <Toaster position="top-right" />
       
-      {/* Header — MD3 top app bar (surface-container) */}
-      <header className="bg-[var(--md-sys-color-surface-container)] border-b border-[var(--md-sys-color-outline-variant)] shrink-0">
+      <header className="bg-[var(--ym-surface)] border-b border-[var(--ym-input-border)] shrink-0">
         <div className="w-full px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[var(--md-sys-color-primary-container)] rounded-xl flex items-center justify-center">
-              <Database className="w-5 h-5 text-[var(--md-sys-color-on-primary-container)]" />
+            <div className="w-10 h-10 bg-[var(--ym-primary)] rounded-[12px] flex items-center justify-center">
+              <Database className="w-5 h-5 text-[var(--ym-primary-foreground)]" />
             </div>
-            <h1 className="text-[1.375rem] font-medium tracking-tight text-[var(--md-sys-color-on-surface)]">{t.title}</h1>
+            <h1 className="font-display text-[1.375rem] font-medium tracking-tight text-[var(--ym-foreground)]">{t.title}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--md-sys-color-on-surface-variant)] bg-[var(--md-sys-color-surface-container-high)] border border-[var(--md-sys-color-outline-variant)] rounded-full transition-colors hover:bg-[var(--md-sys-color-surface-container-highest)]">
+            <label className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--ym-muted-foreground)] bg-[var(--ym-muted)] border border-[var(--ym-input-border)] rounded-full transition-colors hover:bg-[var(--ym-gray4)]">
               <span className="text-xs">{t.aiProviderLabel}</span>
               <select
                 value={aiProvider}
                 onChange={(e) => setAiProvider(e.target.value as AiProvider)}
-                className="bg-transparent text-sm text-[var(--md-sys-color-on-surface)] focus:outline-none cursor-pointer"
+                className="bg-transparent text-sm text-[var(--ym-foreground)] focus:outline-none cursor-pointer"
               >
                 <option value="gemini">{t.aiProviderGemini}</option>
                 <option value="minimax">{t.aiProviderMinimax}</option>
@@ -1476,14 +1454,14 @@ export default function App() {
             </label>
             <button 
               onClick={() => setLanguage(lang => lang === 'en' ? 'zh' : 'en')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-highest)] rounded-full transition-[background-color] duration-200"
+              className="ym-btn-ghost"
             >
               <Languages className="w-4 h-4" />
               {language === 'en' ? '中' : 'EN'}
             </button>
             <button 
               onClick={() => setShowSettings(true)}
-              className="p-2.5 text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-highest)] rounded-full transition-[background-color] duration-200"
+              className="ym-btn-ghost p-2.5"
             >
               <Settings className="w-5 h-5" />
             </button>
@@ -1492,21 +1470,15 @@ export default function App() {
       </header>
 
       <main className="flex-1 flex overflow-hidden">
-        <aside className="w-72 shrink-0 border-r border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-4 overflow-y-auto">
+        <aside className="w-72 shrink-0 border-r border-[var(--ym-input-border)] bg-[var(--ym-background)] p-4 overflow-y-auto">
           <div className="space-y-6">
             <div>
-              <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--md-sys-color-on-primary-container)] bg-[var(--md-sys-color-primary-container)] rounded-full px-3 py-1 mb-3 inline-block">
-                {t.navGroupReddit}
-              </div>
+              <div className="ym-section-label">{t.navGroupReddit}</div>
               <div className="space-y-0.5">
                 <button
                   type="button"
                   onClick={() => setActivePage('monitor')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
-                    activePage === 'monitor'
-                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
-                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
-                  }`}
+                  className={`ym-nav-item ${activePage === 'monitor' ? 'ym-nav-item-active' : ''}`}
                 >
                   <Rss className="w-4 h-4 shrink-0" />
                   {t.navMonitor}
@@ -1514,11 +1486,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('analyze')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
-                    activePage === 'analyze'
-                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
-                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
-                  }`}
+                  className={`ym-nav-item ${activePage === 'analyze' ? 'ym-nav-item-active' : ''}`}
                 >
                   <LayoutTemplate className="w-4 h-4 shrink-0" />
                   {t.navAnalyze}
@@ -1526,11 +1494,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('history')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
-                    activePage === 'history'
-                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
-                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
-                  }`}
+                  className={`ym-nav-item ${activePage === 'history' ? 'ym-nav-item-active' : ''}`}
                 >
                   <History className="w-4 h-4 shrink-0" />
                   {t.navHistory}
@@ -1538,11 +1502,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('content')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
-                    activePage === 'content'
-                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
-                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
-                  }`}
+                  className={`ym-nav-item ${activePage === 'content' ? 'ym-nav-item-active' : ''}`}
                 >
                   <PenSquare className="w-4 h-4 shrink-0" />
                   {t.navContent}
@@ -1550,18 +1510,12 @@ export default function App() {
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--md-sys-color-on-tertiary-container)] bg-[var(--md-sys-color-tertiary-container)] rounded-full px-3 py-1 mb-3 inline-block">
-                {t.navGroupInstagram}
-              </div>
+              <div className="ym-section-label">{t.navGroupInstagram}</div>
               <div className="space-y-0.5">
                 <button
                   type="button"
                   onClick={() => setActivePage('competitive')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
-                    activePage === 'competitive'
-                      ? 'bg-[var(--md-sys-color-tertiary-container)] text-[var(--md-sys-color-on-tertiary-container)]'
-                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
-                  }`}
+                  className={`ym-nav-item ${activePage === 'competitive' ? 'ym-nav-item-active' : ''}`}
                 >
                   <BarChart2 className="w-4 h-4 shrink-0" />
                   {t.navCompetitive}
@@ -1569,11 +1523,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setActivePage('social')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-[background-color,color] duration-200 ${
-                    activePage === 'social'
-                      ? 'bg-[var(--md-sys-color-tertiary-container)] text-[var(--md-sys-color-on-tertiary-container)]'
-                      : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-high)]'
-                  }`}
+                  className={`ym-nav-item ${activePage === 'social' ? 'ym-nav-item-active' : ''}`}
                 >
                   <LayoutDashboard className="w-4 h-4 shrink-0" />
                   {t.navSocial}
@@ -1585,40 +1535,40 @@ export default function App() {
 
         {activePage === 'analyze' ? (
           <section className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--md-sys-color-outline-variant)] flex flex-col bg-[var(--md-sys-color-surface)]">
+            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--ym-input-border)] flex flex-col bg-[var(--ym-background)]">
               <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col space-y-6">
-                <h2 className="text-lg font-medium flex items-center gap-2 text-[var(--md-sys-color-on-surface)] shrink-0">
-                  <FileText className="w-5 h-5 text-[var(--md-sys-color-on-surface-variant)]" />
+                <h2 className="text-lg font-medium flex items-center gap-2 text-[var(--ym-foreground)] shrink-0">
+                  <FileText className="w-5 h-5 text-[var(--ym-muted-foreground)]" />
                   {t.dataInput}
                 </h2>
 
                 <div className="flex-1 flex flex-col space-y-4">
-                  <div className="shrink-0 border-2 border-dashed border-[var(--md-sys-color-outline-variant)] rounded-xl p-6 text-center hover:bg-[var(--md-sys-color-surface-container-low)] transition-[background-color] duration-200 cursor-pointer relative">
+                  <div className="shrink-0 border-2 border-dashed border-[var(--ym-input-border)] rounded-[16px] p-6 text-center hover:bg-[var(--ym-muted)] transition-[background-color] duration-200 cursor-pointer relative">
                     <input
                       type="file"
                       accept=".csv,.txt,.json"
                       onChange={handleFileUpload}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <Upload className="w-8 h-8 text-[var(--md-sys-color-outline)] mx-auto mb-2" />
-                    <p className="text-sm font-medium text-[var(--md-sys-color-on-surface)]">{t.uploadText}</p>
-                    <p className="text-xs text-[var(--md-sys-color-on-surface-variant)] mt-1">{t.dragDrop}</p>
+                    <Upload className="w-8 h-8 text-[var(--ym-gray2)] mx-auto mb-2" />
+                    <p className="text-sm font-medium text-[var(--ym-foreground)]">{t.uploadText}</p>
+                    <p className="text-xs text-[var(--ym-muted-foreground)] mt-1">{t.dragDrop}</p>
                   </div>
 
-                  <div className="shrink-0 border border-[var(--md-sys-color-outline-variant)] rounded-xl p-4 bg-[var(--md-sys-color-surface-container-lowest)]">
-                    <p className="text-xs text-stone-500 mb-2">{t.pasteRedditLink}</p>
+                  <div className="shrink-0 ym-card p-4">
+                    <p className="text-xs text-[var(--ym-muted-foreground)] mb-2">{t.pasteRedditLink}</p>
                     <div className="flex gap-2">
                       <input
                         type="url"
                         value={redditUrl}
                         onChange={(e) => setRedditUrl(e.target.value)}
                         placeholder={t.redditLinkPlaceholder}
-                        className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                        className="ym-input flex-1"
                       />
                       <button
                         onClick={handleConvertRedditLink}
                         disabled={isConverting}
-                        className="px-3 py-2 bg-[var(--md-sys-color-secondary-container)] hover:brightness-95 disabled:opacity-50 text-[var(--md-sys-color-on-secondary-container)] rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200"
+                        className="ym-btn-outline !min-h-0 px-3 py-2 whitespace-nowrap"
                       >
                         {isConverting ? <Loader2 className="w-4 h-4 animate-spin" /> : t.convertToJsonBtn}
                       </button>
@@ -1627,10 +1577,10 @@ export default function App() {
 
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                      <div className="w-full border-t border-stone-200" />
+                      <div className="w-full border-t border-[var(--ym-input-border)]" />
                     </div>
                     <div className="relative flex justify-center">
-                      <span className="bg-white px-2 text-xs text-stone-500 uppercase tracking-wider">{t.orPaste}</span>
+                      <span className="bg-[var(--ym-surface)] px-2 text-xs text-[var(--ym-muted-foreground)] uppercase tracking-wider">{t.orPaste}</span>
                     </div>
                   </div>
 
@@ -1638,22 +1588,22 @@ export default function App() {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder={t.jsonAreaPlaceholder}
-                    className="w-full flex-1 min-h-[200px] p-4 border border-[var(--md-sys-color-outline-variant)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] resize-none text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                    className="ym-textarea flex-1 min-h-[200px]"
                   />
 
                   <button
                     type="button"
                     onClick={handleLoadDemo}
-                    className="shrink-0 w-full py-2.5 border border-stone-300 bg-white hover:bg-stone-50 text-stone-800 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    className="ym-btn-outline w-full shrink-0"
                   >
-                    <Sparkles className="w-4 h-4 text-neutral-600" />
+                    <Sparkles className="w-4 h-4 text-[var(--ym-gray1)]" />
                     {t.loadDemoBtn}
                   </button>
 
                   <button
                     onClick={handleAnalyze}
                     disabled={isAnalyzing || !inputText.trim()}
-                    className="shrink-0 w-full py-3.5 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] text-[var(--md-sys-color-on-primary)] rounded-full font-medium transition-all duration-200 flex items-center justify-center gap-2"
+                    className="ym-btn-primary w-full shrink-0 py-3.5"
                   >
                     {isAnalyzing ? (
                       <>
@@ -1668,38 +1618,38 @@ export default function App() {
               </div>
             </div>
 
-            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto bg-white">
+            <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto bg-[var(--ym-surface)]">
               <div className="max-w-2xl mx-auto w-full h-full">
                 {renderReportContent(report, true)}
               </div>
             </div>
           </section>
         ) : activePage === 'history' ? (
-          <section className="flex-1 p-6 lg:p-8 overflow-hidden bg-[var(--md-sys-color-surface)]">
+          <section className="flex-1 p-6 lg:p-8 overflow-hidden bg-[var(--ym-background)]">
             <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 h-full">
-              <div className="bg-white rounded-2xl border border-stone-200 p-4 overflow-y-auto">
+              <div className="ym-card p-4 overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-medium text-stone-800">{t.historyTitle}</h2>
-                  <button onClick={handleClearHistory} className="text-xs text-stone-500 hover:text-stone-700">
+                  <h2 className="text-lg font-medium text-[var(--ym-foreground)]">{t.historyTitle}</h2>
+                  <button onClick={handleClearHistory} className="text-xs text-[var(--ym-muted-foreground)] hover:text-[var(--ym-foreground)]">
                     {t.clearHistory}
                   </button>
                 </div>
                 {historyRecords.length === 0 ? (
-                  <p className="text-sm text-stone-400">{t.historyEmpty}</p>
+                  <p className="text-sm text-[var(--ym-caption)]">{t.historyEmpty}</p>
                 ) : (
                   <div className="space-y-2">
                     {historyRecords.map((record) => (
                       <button
                         key={record.id}
                         onClick={() => setSelectedHistoryId(record.id)}
-                        className={`w-full text-left p-3 border rounded-lg transition-colors ${
+                        className={`w-full text-left p-3 border rounded-[12px] transition-colors ${
                           selectedHistoryId === record.id
-                            ? 'border-neutral-900 bg-neutral-50 ring-1 ring-neutral-200'
-                            : 'border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300'
+                            ? 'border-[var(--ym-primary)] bg-[var(--ym-surface)] ring-1 ring-[var(--ym-input-border)]'
+                            : 'border-[var(--ym-input-border)] hover:bg-[var(--ym-surface)] hover:border-[var(--ym-border)]'
                         }`}
                       >
-                        <div className="text-xs text-stone-500 mb-1">{new Date(record.createdAt).toLocaleString()}</div>
-                        <div className="text-sm text-stone-800 line-clamp-1">
+                        <div className="text-xs text-[var(--ym-muted-foreground)] mb-1">{new Date(record.createdAt).toLocaleString()}</div>
+                        <div className="text-sm text-[var(--ym-foreground)] line-clamp-1">
                           {record.sourceType === 'link'
                             ? record.sourceLabel
                             : record.sourceType === 'monitor'
@@ -1712,10 +1662,10 @@ export default function App() {
                 )}
               </div>
 
-              <div className="bg-white rounded-2xl border border-stone-200 p-6 overflow-y-auto">
+              <div className="ym-card p-6 overflow-y-auto">
                 {selectedHistory ? (
                   <>
-                    <div className="mb-4 text-xs text-stone-500">
+                    <div className="mb-4 text-xs text-[var(--ym-muted-foreground)]">
                       {new Date(selectedHistory.createdAt).toLocaleString()} ·{' '}
                       {selectedHistory.sourceType === 'link'
                         ? selectedHistory.sourceLabel
@@ -1726,7 +1676,7 @@ export default function App() {
                     {renderReportContent(selectedHistory.report, false)}
                   </>
                 ) : (
-                  <div className="h-full min-h-[300px] flex items-center justify-center text-stone-400">
+                  <div className="h-full min-h-[300px] flex items-center justify-center text-[var(--ym-caption)]">
                     {t.historyDetailEmpty}
                   </div>
                 )}
@@ -1734,17 +1684,17 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'content' ? (
-          <section className="flex-1 p-6 lg:p-8 overflow-y-auto bg-white">
+          <section className="flex-1 p-6 lg:p-8 overflow-y-auto bg-[var(--ym-background)]">
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <h2 className="text-2xl font-semibold tracking-tight">{t.contentTitle}</h2>
+                <h2 className="ym-page-title">{t.contentTitle}</h2>
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm text-stone-700">
+                  <label className="flex items-center gap-2 text-sm text-[var(--ym-foreground)]">
                     <span className="whitespace-nowrap font-medium">{t.contentToneLabel}</span>
                     <select
                       value={contentTone}
                       onChange={(e) => setContentTone(e.target.value as ContentToneId)}
-                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-400/30"
+                      className="ym-select !w-auto"
                     >
                       <option value="curious">{t.toneCurious}</option>
                       <option value="question">{t.toneQuestion}</option>
@@ -1755,15 +1705,15 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => generateContentIdeas(contentSourceReport)}
-                    className="px-4 py-2 bg-[var(--md-sys-color-primary)] hover:brightness-110 text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200"
+                    className="ym-btn-primary px-4 py-2 text-sm"
                   >
                     {t.regenerate}
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-stone-500">{t.contentToneHint}</p>
+              <p className="text-xs text-[var(--ym-muted-foreground)]">{t.contentToneHint}</p>
 
-              <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-4 space-y-2">
+              <div className="ym-prompt-box space-y-2">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1771,49 +1721,49 @@ export default function App() {
                     onChange={(e) => setContentPromptInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !contentSubSuggesting) generateFromPrompt(); }}
                     placeholder={t.promptPlaceholder}
-                    className="flex-1 rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-lowest)] px-4 py-2.5 text-sm text-[var(--md-sys-color-on-surface)] focus:border-[var(--md-sys-color-primary)] focus:outline-none focus:ring-2 focus:ring-neutral-400/30 placeholder:text-[var(--md-sys-color-on-surface-variant)]"
+                    className="ym-input flex-1 !border-0 !bg-transparent focus:!border-transparent !shadow-none"
                     disabled={contentSubSuggesting}
                   />
                   <button
                     type="button"
                     onClick={generateFromPrompt}
                     disabled={contentSubSuggesting || !contentPromptInput.trim()}
-                    className="px-5 py-2.5 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] disabled:cursor-not-allowed text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200"
+                    className="ym-btn-primary px-5 py-2.5 shrink-0"
                   >
                     {t.promptGenerate}
                   </button>
                 </div>
-                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t.promptHint}</p>
+                <p className="text-xs text-[var(--ym-muted-foreground)]">{t.promptHint}</p>
               </div>
 
-              <div className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
+              <div className="text-sm text-[var(--ym-muted-foreground)]">
                 {contentPromptSource
                   ? `${t.basedOnPrompt} — ${contentPromptSource}`
                   : report ? t.basedOnReport : selectedHistory ? t.basedOnHistory : t.contentEmpty}
               </div>
               {!contentSourceReport && !contentSubSuggesting && contentIdeas.length === 0 ? (
-                <div className="h-[260px] flex items-center justify-center text-[var(--md-sys-color-outline)] border-2 border-dashed border-[var(--md-sys-color-outline-variant)] rounded-xl">
+                <div className="h-[260px] flex items-center justify-center text-[var(--ym-caption)] border-2 border-dashed border-[var(--ym-input-border)] rounded-[16px]">
                   {t.contentEmpty}
                 </div>
               ) : contentSubSuggesting && contentIdeas.length === 0 ? (
                 <div className="grid grid-cols-1 gap-4">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="border border-[var(--md-sys-color-outline-variant)] rounded-xl overflow-hidden bg-[var(--md-sys-color-surface-container-lowest)] animate-pulse">
-                      <div className="p-5 border-b border-[var(--md-sys-color-outline-variant)]">
-                        <div className="h-4 w-20 bg-[var(--md-sys-color-surface-container-high)] rounded-full mb-3" />
-                        <div className="h-5 w-3/4 bg-[var(--md-sys-color-surface-container-high)] rounded-lg mb-2" />
-                        <div className="h-4 w-1/2 bg-[var(--md-sys-color-surface-container)] rounded-lg" />
+                    <div key={i} className="ym-card overflow-hidden animate-pulse">
+                      <div className="p-5 border-b border-[var(--ym-input-border)]">
+                        <div className="h-4 w-20 bg-[var(--ym-gray4)] rounded-full mb-3" />
+                        <div className="h-5 w-3/4 bg-[var(--ym-gray4)] rounded-[12px] mb-2" />
+                        <div className="h-4 w-1/2 bg-[var(--ym-gray4)] rounded-[12px]" />
                       </div>
-                      <div className="p-5 space-y-3 bg-[var(--md-sys-color-surface-container-low)]">
-                        <div className="h-4 w-24 bg-[var(--md-sys-color-surface-container-high)] rounded-lg" />
-                        <div className="h-10 w-full bg-[var(--md-sys-color-surface-container)] rounded-xl" />
-                        <div className="h-4 w-20 bg-[var(--md-sys-color-surface-container-high)] rounded-lg" />
-                        <div className="h-24 w-full bg-[var(--md-sys-color-surface-container)] rounded-xl" />
+                      <div className="p-5 space-y-3 bg-[var(--ym-background)]">
+                        <div className="h-4 w-24 bg-[var(--ym-gray4)] rounded-[12px]" />
+                        <div className="h-10 w-full bg-[var(--ym-muted)] rounded-[12px]" />
+                        <div className="h-4 w-20 bg-[var(--ym-gray4)] rounded-[12px]" />
+                        <div className="h-24 w-full bg-[var(--ym-muted)] rounded-[12px]" />
                       </div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-[var(--md-sys-color-on-surface-variant)]">
-                    <svg className="w-4 h-4 animate-spin text-[var(--md-sys-color-primary)]" viewBox="0 0 24 24" fill="none">
+                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-[var(--ym-muted-foreground)]">
+                    <svg className="w-4 h-4 animate-spin text-[var(--ym-primary)]" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
@@ -1825,49 +1775,46 @@ export default function App() {
                   {contentIdeas.map((idea, idx) => (
                     <article
                       key={`${idea.title}-${idx}`}
-                      className="border border-[var(--md-sys-color-outline-variant)] rounded-xl overflow-hidden bg-[var(--md-sys-color-surface-container-lowest)] transition-[box-shadow] duration-200 hover:shadow-md"
+                      className="ym-card overflow-hidden transition-[box-shadow] duration-200 hover:shadow-[var(--ym-shadow-prompt)]"
                     >
-                      <div className="p-5 border-b border-[var(--md-sys-color-outline-variant)]">
-                        <div className="text-xs font-medium text-[var(--md-sys-color-on-primary-container)] bg-[var(--md-sys-color-primary-container)] rounded-full px-3 py-0.5 w-fit mb-2.5">
+                      <div className="p-5 border-b border-[var(--ym-input-border)]">
+                        <div className="ym-badge mb-2.5">
                           {language === 'zh' ? '主题' : 'Topic'} {idx + 1}
                         </div>
-                        <h3 className="text-base font-medium text-[var(--md-sys-color-on-surface)] mb-2 leading-snug">{idea.title}</h3>
-                        <p className="text-sm text-[var(--md-sys-color-on-surface-variant)] leading-relaxed mb-3">{idea.angle}</p>
+                        <h3 className="text-base font-medium text-[var(--ym-foreground)] mb-2 leading-snug">{idea.title}</h3>
+                        <p className="text-sm text-[var(--ym-muted-foreground)] leading-relaxed mb-3">{idea.angle}</p>
                         <div className="flex flex-wrap gap-2">
                           {idea.basedOn.map((tag, i) => (
-                            <span
-                              key={`${tag}-${i}`}
-                              className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)]"
-                            >
+                            <span key={`${tag}-${i}`} className="ym-badge">
                               {tag}
                             </span>
                           ))}
                         </div>
                       </div>
 
-                      <div className="p-5 space-y-4 bg-[var(--md-sys-color-surface-container-low)]">
-                        <h4 className="text-sm font-medium text-[var(--md-sys-color-on-surface)] flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-[var(--md-sys-color-primary)]" />
+                      <div className="p-5 space-y-4 bg-[var(--ym-background)]">
+                        <h4 className="text-sm font-medium text-[var(--ym-foreground)] flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-[var(--ym-primary)]" />
                           {t.contentDraftSection}
                         </h4>
 
                         <div className="space-y-2">
-                          <div className="text-xs font-medium text-[var(--md-sys-color-on-surface-variant)] uppercase tracking-wide">{t.redditPostTitleLabel}</div>
-                          <p className="text-sm font-medium text-[var(--md-sys-color-on-surface)] leading-snug bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] rounded-xl px-4 py-2.5">
+                          <div className="text-xs font-medium text-[var(--ym-muted-foreground)] uppercase tracking-wide">{t.redditPostTitleLabel}</div>
+                          <p className="text-sm font-medium text-[var(--ym-foreground)] leading-snug ym-card px-4 py-2.5 !rounded-[12px]">
                             {idea.content.postTitle}
                           </p>
                         </div>
 
                         <div className="space-y-2">
-                          <div className="text-xs font-medium text-[var(--md-sys-color-on-surface-variant)] uppercase tracking-wide">{t.redditPostBodyLabel}</div>
-                          <div className="text-sm text-[var(--md-sys-color-on-surface)] leading-relaxed bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] rounded-xl px-4 py-3 whitespace-pre-wrap font-sans">
+                          <div className="text-xs font-medium text-[var(--ym-muted-foreground)] uppercase tracking-wide">{t.redditPostBodyLabel}</div>
+                          <div className="text-sm text-[var(--ym-foreground)] leading-relaxed ym-card px-4 py-3 whitespace-pre-wrap font-sans !rounded-[12px]">
                             {idea.content.postBody}
                           </div>
                         </div>
 
                         {idea.content.suggestedSubreddit ? (
-                          <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                            <span className="font-medium text-[var(--md-sys-color-on-surface)]">{t.redditSubredditHint}:</span>{' '}
+                          <p className="text-xs text-[var(--ym-muted-foreground)]">
+                            <span className="font-medium text-[var(--ym-foreground)]">{t.redditSubredditHint}:</span>{' '}
                             {idea.content.suggestedSubreddit}
                           </p>
                         ) : null}
@@ -1879,19 +1826,19 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'monitor' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--md-sys-color-surface)]">
+          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--ym-background)]">
             <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
               <div>
-                <h2 className="text-2xl font-medium tracking-tight text-[var(--md-sys-color-on-surface)]">{t.monitorTitle}</h2>
-                <p className="text-sm text-[var(--md-sys-color-on-surface-variant)] mt-1">{t.monitorHelp}</p>
-                <div className="mt-3 p-3 rounded-xl bg-[var(--md-sys-color-secondary-container)] border border-[var(--md-sys-color-outline-variant)] text-sm text-[var(--md-sys-color-on-secondary-container)] leading-relaxed">
+                <h2 className="ym-page-title">{t.monitorTitle}</h2>
+                <p className="text-sm text-[var(--ym-muted-foreground)] mt-1">{t.monitorHelp}</p>
+                <div className="mt-3 p-3 rounded-[12px] bg-[var(--ym-muted)] border border-[var(--ym-input-border)] text-sm text-[var(--ym-muted-foreground)] leading-relaxed">
                   {t.monitorCompetitiveHint}
                 </div>
               </div>
 
-              <div className="p-4 bg-[var(--md-sys-color-surface-container-lowest)] border border-[var(--md-sys-color-outline-variant)] rounded-xl space-y-3">
+              <div className="ym-card p-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                  <span className="text-xs font-medium text-stone-600">
+                  <span className="text-xs font-medium text-[var(--ym-muted-foreground)]">
                     {language === 'zh' ? '拉取方式' : 'Fetch mode'}
                   </span>
                   <label className="inline-flex items-center gap-2 cursor-pointer">
@@ -1919,12 +1866,12 @@ export default function App() {
                   </label>
                   {monitorMode === 'day' ? (
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-stone-500">{t.monitorDateLabel}</span>
+                      <span className="text-xs text-[var(--ym-muted-foreground)]">{t.monitorDateLabel}</span>
                       <input
                         type="date"
                         value={monitorDay}
                         onChange={(e) => setMonitorDay(e.target.value)}
-                        className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                        className="ym-input text-sm px-2 py-1.5"
                       />
                     </div>
                   ) : null}
@@ -1932,12 +1879,12 @@ export default function App() {
                 <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-[200px]">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <label className="text-xs font-medium text-stone-600">{t.monitorSubredditLabel}</label>
+                    <label className="text-xs font-medium text-[var(--ym-muted-foreground)]">{t.monitorSubredditLabel}</label>
                     <button
                       type="button"
                       onClick={() => setMonitorSubreddits((rows) => [...rows, ''])}
                       title={t.monitorAddSubreddit}
-                      className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-stone-300 bg-stone-50 hover:bg-stone-100 text-stone-700 text-lg font-medium leading-none"
+                      className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-[var(--ym-input-border)] bg-[var(--ym-board-card)] hover:bg-[var(--ym-board-card)] text-[var(--ym-foreground)] text-lg font-medium leading-none"
                     >
                       <Plus className="w-4 h-4" strokeWidth={2.5} />
                     </button>
@@ -1953,7 +1900,7 @@ export default function App() {
                             setMonitorSubreddits((prev) => prev.map((s, i) => (i === idx ? v : s)));
                           }}
                           placeholder={t.monitorSubredditPlaceholder}
-                          className="flex-1 min-w-0 p-2.5 border border-stone-300 rounded-lg text-sm"
+                          className="ym-input flex-1 min-w-0"
                         />
                         {monitorSubreddits.length > 1 ? (
                           <button
@@ -1962,7 +1909,7 @@ export default function App() {
                               setMonitorSubreddits((prev) => prev.filter((_, i) => i !== idx))
                             }
                             title={language === 'zh' ? '移除此行' : 'Remove row'}
-                            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900"
+                            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-[var(--ym-input-border)] bg-[var(--ym-surface)] hover:bg-[var(--ym-board-card)] text-[var(--ym-muted-foreground)] hover:text-[var(--ym-foreground)]"
                           >
                             <Minus className="w-4 h-4" />
                           </button>
@@ -1972,11 +1919,11 @@ export default function App() {
                   </div>
                 </div>
                 <div className="w-24">
-                  <label className="block text-xs font-medium text-stone-600 mb-1">{t.monitorLimit}</label>
+                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.monitorLimit}</label>
                   <select
                     value={monitorLimit}
                     onChange={(e) => setMonitorLimit(Number(e.target.value))}
-                    className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white"
+                    className="ym-input w-full"
                   >
                     {[5, 8, 10, 12, 15, 20, 25].map((n) => (
                       <option key={n} value={n}>
@@ -1985,12 +1932,12 @@ export default function App() {
                     ))}
                   </select>
                 </div>
-                <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer pb-1">
+                <label className="flex items-center gap-2 text-sm text-[var(--ym-foreground)] cursor-pointer pb-1">
                   <input
                     type="checkbox"
                     checked={monitorUseGemini}
                     onChange={(e) => setMonitorUseGemini(e.target.checked)}
-                    className="rounded border-stone-400"
+                    className="rounded border-[var(--ym-gray2)]"
                   />
                   {t.monitorUseGemini}
                 </label>
@@ -1998,7 +1945,7 @@ export default function App() {
                   type="button"
                   onClick={handleMonitorScan}
                   disabled={monitorLoading}
-                  className="px-4 py-2.5 bg-[var(--md-sys-color-primary)] hover:brightness-110 disabled:bg-[var(--md-sys-color-outline-variant)] disabled:text-[var(--md-sys-color-on-surface-variant)] text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium flex items-center gap-2 transition-all duration-200"
+                  className="ym-btn-primary"
                 >
                   {monitorLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rss className="w-4 h-4" />}
                   {monitorLoading ? t.monitorLoading : t.monitorFetchBtn}
@@ -2007,17 +1954,17 @@ export default function App() {
               </div>
 
               {monitorFetchedAt ? (
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-[var(--ym-muted-foreground)]">
                   {t.monitorFetchedAt}: {new Date(monitorFetchedAt).toLocaleString()}
                 </p>
               ) : null}
 
               <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-stone-500">{t.monitorEmotion}:</span>
+                <span className="text-xs text-[var(--ym-muted-foreground)]">{t.monitorEmotion}:</span>
                 <select
                   value={filterEmotion}
                   onChange={(e) => setFilterEmotion(e.target.value)}
-                  className="text-sm border border-stone-300 rounded-lg px-2 py-1 bg-white"
+                  className="ym-select text-sm px-2 py-1"
                 >
                   <option value="all">{t.monitorFilterAll}</option>
                   {['疑惑', '生气', '兴奋', '失望', '讽刺', '中性'].map((e) => (
@@ -2026,11 +1973,11 @@ export default function App() {
                     </option>
                   ))}
                 </select>
-                <span className="text-xs text-stone-500 ml-2">{t.monitorCategory}:</span>
+                <span className="text-xs text-[var(--ym-muted-foreground)] ml-2">{t.monitorCategory}:</span>
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
-                  className="text-sm border border-stone-300 rounded-lg px-2 py-1 bg-white"
+                  className="ym-select text-sm px-2 py-1"
                 >
                   <option value="all">{t.monitorFilterAll}</option>
                   {['推荐', '吐槽', '讨论', '求助', '展示'].map((c) => (
@@ -2043,33 +1990,33 @@ export default function App() {
 
               <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
                 {filteredMonitorPosts.length === 0 ? (
-                  <div className="h-48 flex items-center justify-center text-stone-400 border-2 border-dashed border-stone-200 rounded-2xl bg-white text-sm px-4 text-center">
+                  <div className="h-48 flex items-center justify-center text-[var(--ym-caption)] border-2 border-dashed border-[var(--ym-input-border)] rounded-2xl bg-[var(--ym-surface)] text-sm px-4 text-center">
                     {t.monitorEmpty}
                   </div>
                 ) : (
                   filteredMonitorPosts.map((p) => (
                     <article
                       key={p.id}
-                      className="bg-white border border-neutral-200 rounded-xl overflow-hidden border-l-4 border-l-neutral-400"
+                      className="ym-card overflow-hidden border-l-4 border-l-[var(--ym-gray2)] p-0"
                     >
-                      <div className="p-4 border-b border-neutral-100 flex flex-wrap items-start gap-2 justify-between">
+                      <div className="p-4 border-b border-[var(--ym-gray4)] flex flex-wrap items-start gap-2 justify-between">
                         <div className="flex-1 min-w-0">
                           <a
                             href={p.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-base font-semibold text-neutral-900 hover:text-neutral-600 leading-snug"
+                            className="text-base font-semibold text-[var(--ym-foreground)] hover:text-[var(--ym-gray1)] leading-snug"
                           >
                             {p.title}
                           </a>
-                          <div className="text-xs text-stone-500 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                          <div className="text-xs text-[var(--ym-muted-foreground)] mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
                             <span>{p.subreddit.startsWith('r/') ? p.subreddit : `r/${p.subreddit}`}</span>
                             <span>u/{p.author}</span>
                             <span>{p.createdAt ? new Date(p.createdAt).toLocaleString() : ''}</span>
                             <span>↑{p.score}</span>
                             <span>💬{p.numComments}</span>
                             {p.flair ? (
-                              <span className="text-neutral-700 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 text-[11px] font-medium">
+                              <span className="text-[var(--ym-gray0)] bg-[var(--ym-gray4)] px-1.5 py-0.5 rounded border border-[var(--ym-input-border)] text-[11px] font-medium">
                                 {p.flair}
                               </span>
                             ) : null}
@@ -2085,8 +2032,8 @@ export default function App() {
                           <span
                             className={`text-xs px-2 py-1 rounded-md border shadow-sm ${
                               p.classificationSource !== 'heuristic'
-                                ? 'bg-neutral-100 text-neutral-900 border-neutral-300'
-                                : 'bg-neutral-50 text-neutral-600 border-neutral-200'
+                                ? 'bg-[var(--ym-gray4)] text-[var(--ym-foreground)] border-[var(--ym-gray3)]'
+                                : 'bg-[var(--ym-board-card)] text-[var(--ym-gray1)] border-[var(--ym-input-border)]'
                             }`}
                           >
                             {p.classificationSource === 'minimax'
@@ -2098,11 +2045,11 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="px-4 pb-3 border-b border-stone-100">
+                      <div className="px-4 pb-3 border-b border-[var(--ym-subtle-border)]">
                         <button
                           type="button"
                           onClick={() => openMonitorPostForAnalyze(p)}
-                          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-full bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
+                          className="ym-btn-primary px-3 py-2 text-sm inline-flex"
                         >
                           <ArrowRight className="w-4 h-4" />
                           {t.monitorToAnalyze}
@@ -2127,43 +2074,43 @@ export default function App() {
                           {
                             key: 'likes',
                             label: t.monitorIntentLikes,
-                            ring: 'ring-neutral-200',
-                            bar: 'border-l-neutral-900',
-                            bg: 'bg-neutral-50',
-                            itemBorder: 'border-neutral-200',
+                            ring: 'ring-[var(--ym-gray4)]',
+                            bar: 'border-l-[var(--ym-primary)]',
+                            bg: 'bg-[var(--ym-board-card)]',
+                            itemBorder: 'border-[var(--ym-input-border)]',
                           },
                           {
                             key: 'dislikes',
                             label: t.monitorIntentDislikes,
-                            ring: 'ring-neutral-300',
-                            bar: 'border-l-neutral-700',
-                            bg: 'bg-neutral-100',
-                            itemBorder: 'border-neutral-300',
+                            ring: 'ring-[var(--ym-gray3)]',
+                            bar: 'border-l-[var(--ym-gray0)]',
+                            bg: 'bg-[var(--ym-gray4)]',
+                            itemBorder: 'border-[var(--ym-gray3)]',
                           },
                           {
                             key: 'requests',
                             label: t.monitorIntentRequests,
-                            ring: 'ring-neutral-200',
-                            bar: 'border-l-neutral-600',
-                            bg: 'bg-neutral-50',
-                            itemBorder: 'border-neutral-200',
+                            ring: 'ring-[var(--ym-gray4)]',
+                            bar: 'border-l-[var(--ym-gray1)]',
+                            bg: 'bg-[var(--ym-board-card)]',
+                            itemBorder: 'border-[var(--ym-input-border)]',
                           },
                           {
                             key: 'complaints',
                             label: t.monitorIntentComplaints,
-                            ring: 'ring-neutral-300',
-                            bar: 'border-l-neutral-500',
-                            bg: 'bg-neutral-100',
-                            itemBorder: 'border-neutral-300',
+                            ring: 'ring-[var(--ym-gray3)]',
+                            bar: 'border-l-[var(--ym-gray1)]',
+                            bg: 'bg-[var(--ym-gray4)]',
+                            itemBorder: 'border-[var(--ym-gray3)]',
                           },
                         ];
                         return (
-                          <div className="px-4 py-3 bg-stone-50/90 border-b border-stone-100">
-                            <div className="text-xs font-medium text-stone-600 mb-2">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 border border-stone-200 text-stone-700 shadow-sm">
+                          <div className="px-4 py-3 bg-[var(--ym-board-card)]/90 border-b border-[var(--ym-subtle-border)]">
+                            <div className="text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ym-surface)] px-2 py-0.5 border border-[var(--ym-input-border)] text-[var(--ym-foreground)] shadow-sm">
                                 {t.monitorIntentSection}
                               </span>
-                              <span className="text-stone-400 font-normal">
+                              <span className="text-[var(--ym-caption)] font-normal">
                                 {' '}
                                 — {p.classificationSource !== 'heuristic' ? t.monitorIntentByAi : t.monitorIntentByKeyword}
                               </span>
@@ -2172,17 +2119,17 @@ export default function App() {
                               {blocks.map(({ key, label, ring, bar, bg, itemBorder }) => (
                                 <div
                                   key={key}
-                                  className={`rounded-lg border border-stone-200/80 p-2.5 shadow-sm ring-1 ${ring} ${bg} border-l-4 ${bar}`}
+                                  className={`rounded-lg border border-[var(--ym-input-border)]/80 p-2.5 shadow-sm ring-1 ${ring} ${bg} border-l-4 ${bar}`}
                                 >
-                                  <div className="text-[11px] font-semibold text-stone-700 mb-1.5">{label}</div>
+                                  <div className="text-[11px] font-semibold text-[var(--ym-foreground)] mb-1.5">{label}</div>
                                   {im[key].length === 0 ? (
-                                    <p className="text-xs text-stone-400">—</p>
+                                    <p className="text-xs text-[var(--ym-caption)]">—</p>
                                   ) : (
                                     <ul className="space-y-1">
                                       {im[key].map((line, i) => (
                                         <li
                                           key={i}
-                                          className={`text-xs text-stone-800 leading-snug pl-2 border-l-2 ${itemBorder} bg-white/60 rounded-r`}
+                                          className={`text-xs text-[var(--ym-foreground)] leading-snug pl-2 border-l-2 ${itemBorder} bg-[var(--ym-surface)]/60 rounded-r`}
                                         >
                                           {line}
                                         </li>
@@ -2197,9 +2144,9 @@ export default function App() {
                       })()}
 
                       {p.body ? (
-                        <div className="px-4 py-3 bg-stone-50/80 border-b border-stone-100">
-                          <div className="text-xs font-medium text-stone-500 mb-1">{t.monitorBody}</div>
-                          <div className="text-sm text-stone-800 whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
+                        <div className="px-4 py-3 bg-[var(--ym-board-card)]/80 border-b border-[var(--ym-subtle-border)]">
+                          <div className="text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.monitorBody}</div>
+                          <div className="text-sm text-[var(--ym-foreground)] whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
                             {p.body}
                           </div>
                         </div>
@@ -2209,16 +2156,16 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setExpandedMonitorId((id) => (id === p.id ? null : p.id))}
-                          className="text-xs text-stone-600 hover:text-stone-900"
+                          className="text-xs text-[var(--ym-muted-foreground)] hover:text-[var(--ym-foreground)]"
                         >
                           {expandedMonitorId === p.id ? '▼' : '▶'} {t.monitorComments} ({p.comments.length})
                         </button>
                         {expandedMonitorId === p.id ? (
                           <ul className="mt-2 space-y-2 max-h-64 overflow-y-auto">
                             {p.comments.map((c) => (
-                              <li key={c.id} className="text-sm border-l-2 border-neutral-400 bg-neutral-50 pl-3 py-1 rounded-r">
-                                <span className="text-xs text-stone-500">u/{c.author} ↑{c.score}</span>
-                                <p className="text-stone-800 whitespace-pre-wrap mt-0.5">{c.body}</p>
+                              <li key={c.id} className="text-sm border-l-2 border-[var(--ym-gray2)] bg-[var(--ym-board-card)] pl-3 py-1 rounded-r">
+                                <span className="text-xs text-[var(--ym-muted-foreground)]">u/{c.author} ↑{c.score}</span>
+                                <p className="text-[var(--ym-foreground)] whitespace-pre-wrap mt-0.5">{c.body}</p>
                               </li>
                             ))}
                           </ul>
@@ -2231,24 +2178,24 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'competitive' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--md-sys-color-surface)]">
+          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--ym-background)]">
             <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
                 <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-stone-800 flex flex-wrap items-center gap-2">
+                  <h2 className="ym-page-title flex flex-wrap items-center gap-2">
                     {t.competitiveTitle}
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-900 border border-neutral-200">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--ym-gray4)] text-[var(--ym-foreground)] border border-[var(--ym-input-border)]">
                       Instagram
                     </span>
                   </h2>
-                  <p className="text-sm text-stone-500 mt-1 max-w-2xl">{t.competitiveHelp}</p>
-                  <p className="text-xs text-stone-400 mt-2">{t.competitiveCronNote}</p>
+                  <p className="text-sm text-[var(--ym-muted-foreground)] mt-1 max-w-2xl">{t.competitiveHelp}</p>
+                  <p className="text-xs text-[var(--ym-caption)] mt-2">{t.competitiveCronNote}</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleCompetitiveSync}
                   disabled={competitiveSyncing}
-                  className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white rounded-full text-sm font-medium flex items-center gap-2 shrink-0 transition-colors"
+                  className="ym-btn-primary px-4 py-2.5 text-sm shrink-0"
                 >
                   {competitiveSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
                   {competitiveSyncing ? t.competitiveSyncing : t.competitiveSync}
@@ -2257,38 +2204,38 @@ export default function App() {
 
               {competitiveLoading ? (
                 <div className="flex justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-stone-400" />
+                  <Loader2 className="w-8 h-8 animate-spin text-[var(--ym-caption)]" />
                 </div>
               ) : (
                 <div className="flex-1 overflow-y-auto space-y-6 pr-1 min-h-0">
-                  <p className="text-xs text-stone-500">
+                  <p className="text-xs text-[var(--ym-muted-foreground)]">
                     {t.competitiveLastRun}:{' '}
                     {competitiveCache?.updatedAt
                       ? new Date(String(competitiveCache.updatedAt)).toLocaleString()
                       : '—'}
                   </p>
 
-                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-                    <h3 className="text-sm font-semibold text-stone-800 mb-2">{t.competitiveHistoryTitle}</h3>
+                  <div className="ym-card p-4">
+                    <h3 className="text-sm font-semibold text-[var(--ym-foreground)] mb-2">{t.competitiveHistoryTitle}</h3>
                     {(() => {
                       const history = Array.isArray((competitiveCache as any)?.history)
                         ? ((competitiveCache as any).history as Array<any>)
                         : [];
                       if (history.length === 0) {
-                        return <p className="text-xs text-stone-400">{t.competitiveHistoryEmpty}</p>;
+                        return <p className="text-xs text-[var(--ym-caption)]">{t.competitiveHistoryEmpty}</p>;
                       }
                       return (
-                        <div className="max-h-52 overflow-y-auto divide-y divide-stone-100">
+                        <div className="max-h-52 overflow-y-auto divide-y divide-[var(--ym-subtle-border)]">
                           {history.map((h, idx) => {
                             const by = (h?.instagram?.postsByUsername || {}) as Record<string, Array<Record<string, unknown>>>;
                             const total = Object.values(by).reduce((n, rows) => n + (Array.isArray(rows) ? rows.length : 0), 0);
                             const hasError = typeof h?.instagram?.error === 'string' && h.instagram.error.length > 0;
                             return (
                               <div key={`${h?.updatedAt || 'row'}-${idx}`} className="py-2 text-xs flex items-center justify-between gap-3">
-                                <div className="text-stone-700">
+                                <div className="text-[var(--ym-foreground)]">
                                   {h?.updatedAt ? new Date(String(h.updatedAt)).toLocaleString() : '—'}
                                 </div>
-                                <div className={`font-medium ${hasError ? 'text-neutral-500' : 'text-neutral-900'}`}>
+                                <div className={`font-medium ${hasError ? 'text-[var(--ym-muted-foreground)]' : 'text-[var(--ym-foreground)]'}`}>
                                   {hasError ? (language === 'zh' ? '失败' : 'Failed') : `${total} posts`}
                                 </div>
                               </div>
@@ -2299,9 +2246,9 @@ export default function App() {
                     })()}
                   </div>
 
-                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-900">
-                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-neutral-900" aria-hidden />
+                  <div className="ym-card p-4 border-t-4 border-t-[var(--ym-primary)]">
+                    <h3 className="text-sm font-semibold text-[var(--ym-foreground)] mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[var(--ym-primary)]" aria-hidden />
                       {t.competitiveIg}
                     </h3>
                     {(() => {
@@ -2315,7 +2262,7 @@ export default function App() {
                         | undefined;
                       if (ig?.error) {
                         return (
-                          <div className="text-sm text-neutral-800 bg-neutral-50 border border-neutral-200 border-l-4 border-l-neutral-900 rounded-lg px-3 py-2">
+                          <div className="text-sm text-[var(--ym-foreground)] bg-[var(--ym-board-card)] border border-[var(--ym-input-border)] border-l-4 border-l-[var(--ym-primary)] rounded-lg px-3 py-2">
                             {t.competitiveIgError}: {ig.error}
                           </div>
                         );
@@ -2343,9 +2290,9 @@ export default function App() {
 
                       return (
                         <div className="space-y-4">
-                          <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg bg-stone-50 border border-stone-100">
+                          <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg bg-[var(--ym-board-card)] border border-[var(--ym-subtle-border)]">
                             <div className="flex-1 min-w-[200px]">
-                              <div className="text-xs font-medium text-stone-600 mb-2">{t.competitiveFilterAccounts}</div>
+                              <div className="text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.competitiveFilterAccounts}</div>
                               <div className="flex flex-wrap gap-x-4 gap-y-2">
                                 <button
                                   type="button"
@@ -2354,14 +2301,14 @@ export default function App() {
                                     for (const k of accountKeys) next[k] = true;
                                     setIgFilterSelections(next);
                                   }}
-                                  className="text-xs text-neutral-700 hover:underline"
+                                  className="text-xs text-[var(--ym-gray0)] hover:underline"
                                 >
                                   {t.competitiveFilterAllAccounts}
                                 </button>
                                 {pilotHandles.map((uname) => {
                                   const key = uname.toLowerCase();
                                   return (
-                                    <label key={key} className="inline-flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer">
+                                    <label key={key} className="inline-flex items-center gap-1.5 text-xs text-[var(--ym-foreground)] cursor-pointer">
                                       <input
                                         type="checkbox"
                                         checked={igFilterSelections[key] !== false}
@@ -2371,7 +2318,7 @@ export default function App() {
                                             [key]: e.target.checked,
                                           }))
                                         }
-                                        className="rounded border-stone-400"
+                                        className="rounded border-[var(--ym-gray2)]"
                                       />
                                       @{uname}
                                     </label>
@@ -2380,22 +2327,22 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-2 items-center">
-                              <label className="text-xs text-stone-600 flex items-center gap-1">
+                              <label className="text-xs text-[var(--ym-muted-foreground)] flex items-center gap-1">
                                 {t.competitiveFilterDateFrom}
                                 <input
                                   type="date"
                                   value={igDateFrom}
                                   onChange={(e) => setIgDateFrom(e.target.value)}
-                                  className="border border-stone-300 rounded-lg px-2 py-1 text-sm bg-white"
+                                  className="ym-input text-sm px-2 py-1"
                                 />
                               </label>
-                              <label className="text-xs text-stone-600 flex items-center gap-1">
+                              <label className="text-xs text-[var(--ym-muted-foreground)] flex items-center gap-1">
                                 {t.competitiveFilterDateTo}
                                 <input
                                   type="date"
                                   value={igDateTo}
                                   onChange={(e) => setIgDateTo(e.target.value)}
-                                  className="border border-stone-300 rounded-lg px-2 py-1 text-sm bg-white"
+                                  className="ym-input text-sm px-2 py-1"
                                 />
                               </label>
                               <button
@@ -2407,7 +2354,7 @@ export default function App() {
                                   for (const k of accountKeys) next[k] = true;
                                   setIgFilterSelections(next);
                                 }}
-                                className="text-xs px-2 py-1 rounded-md border border-stone-300 bg-white hover:bg-stone-100 text-stone-700"
+                                className="text-xs px-2 py-1 rounded-md border border-[var(--ym-input-border)] bg-[var(--ym-surface)] hover:bg-[var(--ym-board-card)] text-[var(--ym-foreground)]"
                               >
                                 {t.competitiveFilterReset}
                               </button>
@@ -2443,17 +2390,17 @@ export default function App() {
                           />
 
                           {totalInCache === 0 ? (
-                            <p className="text-sm text-stone-400">{t.competitiveIgEmpty}</p>
+                            <p className="text-sm text-[var(--ym-caption)]">{t.competitiveIgEmpty}</p>
                           ) : null}
 
                           <div className="space-y-6">
                             {totalInCache > 0 && totalFilteredPosts === 0 ? (
-                              <p className="text-sm text-stone-500 text-center py-6">{t.competitiveFilterNoMatch}</p>
+                              <p className="text-sm text-[var(--ym-muted-foreground)] text-center py-6">{t.competitiveFilterNoMatch}</p>
                             ) : (
                               rowsByAccount.map(({ uname, rows }) =>
                                 rows.length === 0 ? null : (
                                   <div key={uname}>
-                                    <div className="text-xs font-medium text-neutral-800 mb-2">@{uname}</div>
+                                    <div className="text-xs font-medium text-[var(--ym-foreground)] mb-2">@{uname}</div>
                                     <div className="space-y-2 max-h-72 overflow-y-auto">
                                       {rows.map((row, idx) => {
                                         const caption = String(row.caption || '').slice(0, 200);
@@ -2465,29 +2412,29 @@ export default function App() {
                                         return (
                                           <div
                                             key={`${uname}-${idx}-${url}`}
-                                            className="text-xs border border-stone-100 rounded-lg p-2 bg-stone-50/80"
+                                            className="text-xs border border-[var(--ym-subtle-border)] rounded-lg p-2 bg-[var(--ym-board-card)]/80"
                                           >
                                             <div className="flex flex-wrap items-start gap-2">
                                               <a
                                                 href={url}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="font-medium text-neutral-900 hover:text-neutral-600 line-clamp-2 flex-1 min-w-0"
+                                                className="font-medium text-[var(--ym-foreground)] hover:text-[var(--ym-gray1)] line-clamp-2 flex-1 min-w-0"
                                               >
                                                 {caption || '(no caption)'}
                                               </a>
                                               {pk === 'collaboration' ? (
-                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-neutral-100 text-neutral-800 border border-neutral-200 text-[10px] font-semibold">
+                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-[var(--ym-gray4)] text-[var(--ym-foreground)] border border-[var(--ym-input-border)] text-[10px] font-semibold">
                                                   {t.competitiveTagCollab}
                                                 </span>
                                               ) : null}
                                               {pk === 'repost' ? (
-                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-neutral-200 text-neutral-900 border border-neutral-300 text-[10px] font-semibold">
+                                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-[var(--ym-gray3)] text-[var(--ym-foreground)] border border-[var(--ym-gray3)] text-[10px] font-semibold">
                                                   {t.competitiveTagRepost}
                                                 </span>
                                               ) : null}
                                             </div>
-                                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-stone-500">
+                                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[var(--ym-muted-foreground)]">
                                               {ts ? <span>{new Date(ts).toLocaleString()}</span> : null}
                                               <span>
                                                 {t.competitiveLikes}: {typeof likes === 'number' ? likes : '—'}
@@ -2514,18 +2461,18 @@ export default function App() {
             </div>
           </section>
         ) : activePage === 'social' ? (
-          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--md-sys-color-surface)]">
+          <section className="flex-1 flex flex-col overflow-hidden p-6 lg:p-8 bg-[var(--ym-background)]">
             <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
                 <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-stone-800 flex flex-wrap items-center gap-2">
+                  <h2 className="ym-page-title flex flex-wrap items-center gap-2">
                     {t.socialDashTitle}
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-900 border border-neutral-200">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--ym-gray4)] text-[var(--ym-foreground)] border border-[var(--ym-input-border)]">
                       Instagram
                     </span>
                   </h2>
-                  <p className="text-sm text-stone-500 mt-1 max-w-2xl">{t.socialDashIntro}</p>
-                  <p className="text-xs text-stone-400 mt-2">
+                  <p className="text-sm text-[var(--ym-muted-foreground)] mt-1 max-w-2xl">{t.socialDashIntro}</p>
+                  <p className="text-xs text-[var(--ym-caption)] mt-2">
                     {t.competitiveLastRun}:{' '}
                     {competitiveCache?.updatedAt
                       ? new Date(String(competitiveCache.updatedAt)).toLocaleString()
@@ -2536,7 +2483,7 @@ export default function App() {
                   type="button"
                   onClick={handleCompetitiveSync}
                   disabled={competitiveSyncing}
-                  className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white rounded-full text-sm font-medium flex items-center gap-2 shrink-0 transition-colors"
+                  className="ym-btn-primary px-4 py-2.5 text-sm shrink-0"
                 >
                   {competitiveSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
                   {competitiveSyncing ? t.competitiveSyncing : t.competitiveSync}
@@ -2545,38 +2492,38 @@ export default function App() {
 
               {competitiveLoading ? (
                 <div className="flex justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-stone-400" />
+                  <Loader2 className="w-8 h-8 animate-spin text-[var(--ym-caption)]" />
                 </div>
               ) : !socialDashboard ? (
-                <p className="text-sm text-stone-500 py-8">{t.socialDashEmpty}</p>
+                <p className="text-sm text-[var(--ym-muted-foreground)] py-8">{t.socialDashEmpty}</p>
               ) : (
                 <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
-                  <p className="text-xs text-stone-500">
+                  <p className="text-xs text-[var(--ym-muted-foreground)]">
                     {t.socialSec1FetchAt}:{' '}
                     {socialDashboard.fetchedAt
                       ? new Date(String(socialDashboard.fetchedAt)).toLocaleString()
                       : '—'}
                   </p>
-                  <p className="text-xs text-stone-400">{t.socialSec1FollowersNote}</p>
+                  <p className="text-xs text-[var(--ym-caption)]">{t.socialSec1FollowersNote}</p>
 
-                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-900">
-                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-neutral-900" aria-hidden />
+                  <div className="ym-card p-4 border-t-4 border-t-[var(--ym-primary)]">
+                    <h3 className="text-sm font-semibold text-[var(--ym-foreground)] mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[var(--ym-primary)]" aria-hidden />
                       {t.socialSec1Title}
                     </h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="text-left text-stone-500 border-b border-stone-100">
+                          <tr className="text-left text-[var(--ym-muted-foreground)] border-b border-[var(--ym-subtle-border)]">
                             <th className="py-2 pr-4 font-medium">@</th>
                             <th className="py-2 font-medium">{t.socialSec1PostsSample}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {socialDashboard.accountRows.map((row) => (
-                            <tr key={row.handle} className="border-b border-stone-50 last:border-0">
-                              <td className="py-2 pr-4 text-stone-800">{row.handle}</td>
-                              <td className="py-2 text-stone-700 tabular-nums">{row.postsInSample}</td>
+                            <tr key={row.handle} className="border-b border-[var(--ym-subtle-border)] last:border-0">
+                              <td className="py-2 pr-4 text-[var(--ym-foreground)]">{row.handle}</td>
+                              <td className="py-2 text-[var(--ym-foreground)] tabular-nums">{row.postsInSample}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2584,59 +2531,59 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-700">
-                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-neutral-700" aria-hidden />
+                  <div className="ym-card p-4 border-t-4 border-t-[var(--ym-gray0)]">
+                    <h3 className="text-sm font-semibold text-[var(--ym-foreground)] mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[var(--ym-gray0)]" aria-hidden />
                       {t.socialSec2Title}
                     </h3>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <div className="text-xs font-medium text-stone-500 mb-2">{t.socialSec2Kind}</div>
-                        <ul className="space-y-1.5 text-sm text-stone-700">
+                        <div className="text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.socialSec2Kind}</div>
+                        <ul className="space-y-1.5 text-sm text-[var(--ym-foreground)]">
                           <li className="flex justify-between gap-2 items-center">
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-900" aria-hidden />
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ym-primary)]" aria-hidden />
                               {t.socialKindOriginal}
                             </span>
-                            <span className="tabular-nums font-semibold text-neutral-900 bg-neutral-50 px-2 py-0.5 rounded-md border border-neutral-200">
+                            <span className="tabular-nums font-semibold text-[var(--ym-foreground)] bg-[var(--ym-board-card)] px-2 py-0.5 rounded-md border border-[var(--ym-input-border)]">
                               {socialDashboard.contentMix.original}
                             </span>
                           </li>
                           <li className="flex justify-between gap-2 items-center">
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-600" aria-hidden />
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ym-gray1)]" aria-hidden />
                               {t.socialKindCollab}
                             </span>
-                            <span className="tabular-nums font-semibold text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded-md border border-neutral-200">
+                            <span className="tabular-nums font-semibold text-[var(--ym-foreground)] bg-[var(--ym-gray4)] px-2 py-0.5 rounded-md border border-[var(--ym-input-border)]">
                               {socialDashboard.contentMix.collaboration}
                             </span>
                           </li>
                           <li className="flex justify-between gap-2 items-center">
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" aria-hidden />
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ym-gray2)]" aria-hidden />
                               {t.socialKindRepost}
                             </span>
-                            <span className="tabular-nums font-semibold text-neutral-700 bg-neutral-50 px-2 py-0.5 rounded-md border border-neutral-300">
+                            <span className="tabular-nums font-semibold text-[var(--ym-gray0)] bg-[var(--ym-board-card)] px-2 py-0.5 rounded-md border border-[var(--ym-gray3)]">
                               {socialDashboard.contentMix.repost}
                             </span>
                           </li>
                           <li className="flex justify-between gap-2 items-center">
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-stone-400" aria-hidden />
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ym-caption)]" aria-hidden />
                               {t.socialKindUnknown}
                             </span>
-                            <span className="tabular-nums font-semibold text-stone-700 bg-stone-100 px-2 py-0.5 rounded-md border border-stone-200">
+                            <span className="tabular-nums font-semibold text-[var(--ym-foreground)] bg-[var(--ym-gray4)] px-2 py-0.5 rounded-md border border-[var(--ym-input-border)]">
                               {socialDashboard.contentMix.unknown}
                             </span>
                           </li>
                         </ul>
                       </div>
                       <div>
-                        <div className="text-xs font-medium text-stone-500 mb-2">{t.socialSec2Media}</div>
+                        <div className="text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.socialSec2Media}</div>
                         {Object.keys(socialDashboard.mediaTypeMix).length === 0 ? (
-                          <p className="text-sm text-stone-400">—</p>
+                          <p className="text-sm text-[var(--ym-caption)]">—</p>
                         ) : (
-                          <ul className="space-y-1.5 text-sm text-stone-700">
+                          <ul className="space-y-1.5 text-sm text-[var(--ym-foreground)]">
                             {Object.entries(socialDashboard.mediaTypeMix)
                               .sort((a, b) => Number(b[1]) - Number(a[1]))
                               .map(([k, v]) => (
@@ -2651,42 +2598,42 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-500">
-                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-neutral-500" aria-hidden />
+                  <div className="ym-card p-4 border-t-4 border-t-[var(--ym-gray1)]">
+                    <h3 className="text-sm font-semibold text-[var(--ym-foreground)] mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[var(--ym-board-card)]0" aria-hidden />
                       {t.socialSec3Title}
                     </h3>
                     <div className="grid sm:grid-cols-2 gap-3 text-sm mb-4">
-                      <div className="rounded-lg bg-neutral-50 border border-neutral-200 px-3 py-2">
-                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3TotalLikes}</div>
-                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
+                      <div className="rounded-lg bg-[var(--ym-board-card)] border border-[var(--ym-input-border)] px-3 py-2">
+                        <div className="text-xs text-[var(--ym-gray1)] font-medium">{t.socialSec3TotalLikes}</div>
+                        <div className="text-lg font-semibold text-[var(--ym-foreground)] tabular-nums">
                           {Math.round(socialDashboard.engagement.totalLikes).toLocaleString()}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-neutral-100 border border-neutral-200 px-3 py-2">
-                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3TotalComments}</div>
-                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
+                      <div className="rounded-lg bg-[var(--ym-gray4)] border border-[var(--ym-input-border)] px-3 py-2">
+                        <div className="text-xs text-[var(--ym-gray1)] font-medium">{t.socialSec3TotalComments}</div>
+                        <div className="text-lg font-semibold text-[var(--ym-foreground)] tabular-nums">
                           {Math.round(socialDashboard.engagement.totalComments).toLocaleString()}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-neutral-50 border border-neutral-300 px-3 py-2">
-                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3AvgLikes}</div>
-                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
+                      <div className="rounded-lg bg-[var(--ym-board-card)] border border-[var(--ym-gray3)] px-3 py-2">
+                        <div className="text-xs text-[var(--ym-gray1)] font-medium">{t.socialSec3AvgLikes}</div>
+                        <div className="text-lg font-semibold text-[var(--ym-foreground)] tabular-nums">
                           {socialDashboard.engagement.avgLikes.toFixed(1)}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-neutral-100 border border-neutral-300 px-3 py-2">
-                        <div className="text-xs text-neutral-600 font-medium">{t.socialSec3AvgComments}</div>
-                        <div className="text-lg font-semibold text-neutral-900 tabular-nums">
+                      <div className="rounded-lg bg-[var(--ym-gray4)] border border-[var(--ym-gray3)] px-3 py-2">
+                        <div className="text-xs text-[var(--ym-gray1)] font-medium">{t.socialSec3AvgComments}</div>
+                        <div className="text-lg font-semibold text-[var(--ym-foreground)] tabular-nums">
                           {socialDashboard.engagement.avgComments.toFixed(1)}
                         </div>
                       </div>
                     </div>
-                    <div className="text-xs font-medium text-stone-500 mb-2">{t.socialSec3ByAccount}</div>
+                    <div className="text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.socialSec3ByAccount}</div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="text-left text-stone-500 border-b border-stone-100">
+                          <tr className="text-left text-[var(--ym-muted-foreground)] border-b border-[var(--ym-subtle-border)]">
                             <th className="py-2 pr-4 font-medium">@</th>
                             <th className="py-2 pr-4 font-medium">{t.competitiveLikes} ∅</th>
                             <th className="py-2 font-medium">{t.competitiveComments} ∅</th>
@@ -2695,11 +2642,11 @@ export default function App() {
                         </thead>
                         <tbody>
                           {socialDashboard.engagement.byAccount.map((row) => (
-                            <tr key={row.handle} className="border-b border-stone-50 last:border-0">
-                              <td className="py-2 pr-4 text-stone-800">{row.handle}</td>
+                            <tr key={row.handle} className="border-b border-[var(--ym-subtle-border)] last:border-0">
+                              <td className="py-2 pr-4 text-[var(--ym-foreground)]">{row.handle}</td>
                               <td className="py-2 pr-4 tabular-nums">{row.avgLikes.toFixed(1)}</td>
                               <td className="py-2 tabular-nums">{row.avgComments.toFixed(1)}</td>
-                              <td className="py-2 pl-2 text-right tabular-nums text-stone-500">{row.n}</td>
+                              <td className="py-2 pl-2 text-right tabular-nums text-[var(--ym-muted-foreground)]">{row.n}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2707,26 +2654,26 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-neutral-200 bg-white p-4 border-t-4 border-t-neutral-400">
-                    <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-neutral-400" aria-hidden />
+                  <div className="ym-card p-4 border-t-4 border-t-[var(--ym-gray2)]">
+                    <h3 className="text-sm font-semibold text-[var(--ym-foreground)] mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[var(--ym-gray2)]" aria-hidden />
                       {t.socialSec4Title}
                     </h3>
-                    <dl className="grid sm:grid-cols-2 gap-3 text-sm text-stone-700">
-                      <div className="flex justify-between gap-2 border-b border-stone-50 pb-2 sm:border-0 sm:pb-0">
-                        <dt className="text-stone-500">{t.socialSec4Span}</dt>
+                    <dl className="grid sm:grid-cols-2 gap-3 text-sm text-[var(--ym-foreground)]">
+                      <div className="flex justify-between gap-2 border-b border-[var(--ym-subtle-border)] pb-2 sm:border-0 sm:pb-0">
+                        <dt className="text-[var(--ym-muted-foreground)]">{t.socialSec4Span}</dt>
                         <dd className="tabular-nums text-right">
                           {socialDashboard.cadence.dateMin && socialDashboard.cadence.dateMax
                             ? `${socialDashboard.cadence.dateMin} → ${socialDashboard.cadence.dateMax}`
                             : '—'}
                         </dd>
                       </div>
-                      <div className="flex justify-between gap-2 border-b border-stone-50 pb-2 sm:border-0 sm:pb-0">
-                        <dt className="text-stone-500">{t.socialSec4Days}</dt>
+                      <div className="flex justify-between gap-2 border-b border-[var(--ym-subtle-border)] pb-2 sm:border-0 sm:pb-0">
+                        <dt className="text-[var(--ym-muted-foreground)]">{t.socialSec4Days}</dt>
                         <dd className="tabular-nums text-right">{socialDashboard.cadence.spanDays || '—'}</dd>
                       </div>
-                      <div className="flex justify-between gap-2 border-b border-stone-50 pb-2 sm:border-0 sm:pb-0">
-                        <dt className="text-stone-500">{t.socialSec4Ppw}</dt>
+                      <div className="flex justify-between gap-2 border-b border-[var(--ym-subtle-border)] pb-2 sm:border-0 sm:pb-0">
+                        <dt className="text-[var(--ym-muted-foreground)]">{t.socialSec4Ppw}</dt>
                         <dd className="tabular-nums text-right">
                           {socialDashboard.cadence.spanDays > 0
                             ? socialDashboard.cadence.postsPerWeek.toFixed(2)
@@ -2734,7 +2681,7 @@ export default function App() {
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">
-                        <dt className="text-stone-500">{t.socialSec4PeakDay}</dt>
+                        <dt className="text-[var(--ym-muted-foreground)]">{t.socialSec4PeakDay}</dt>
                         <dd className="text-right">
                           {socialDashboard.cadence.busiestWeekday
                             ? `${weekdayLabel(socialDashboard.cadence.busiestWeekday.index, language)} (${
@@ -2755,34 +2702,34 @@ export default function App() {
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--md-sys-color-surface-container-high)] rounded-[28px] max-w-md w-full p-6 shadow-xl animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-medium mb-4 text-[var(--md-sys-color-on-surface)]">{t.settingsTitle}</h2>
+          <div className="bg-[var(--ym-surface)] rounded-[24px] max-w-md w-full p-6 shadow-[var(--ym-shadow-prompt)] animate-in zoom-in-95 duration-200">
+            <h2 className="font-display text-xl font-medium mb-4 text-[var(--ym-foreground)]">{t.settingsTitle}</h2>
             
             <div className="space-y-4">
-              <div className="bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] p-3 rounded-xl text-xs flex gap-2 items-start">
+              <div className="bg-[var(--ym-muted)] text-[var(--ym-muted-foreground)] p-3 rounded-[12px] text-xs flex gap-2 items-start">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <p>{t.settingsHelp}</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--md-sys-color-on-surface)] mb-1">{t.apiKeyLabel}</label>
+                <label className="block text-sm font-medium text-[var(--ym-foreground)] mb-1">{t.apiKeyLabel}</label>
                 <input 
                   type="password" 
                   value={notionApiKey}
                   onChange={(e) => setNotionApiKey(e.target.value)}
                   placeholder="secret_..."
-                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                  className="ym-input"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-[var(--md-sys-color-on-surface)] mb-1">{t.dbIdLabel}</label>
+                <label className="block text-sm font-medium text-[var(--ym-foreground)] mb-1">{t.dbIdLabel}</label>
                 <input 
                   type="text" 
                   value={notionDbId}
                   onChange={(e) => setNotionDbId(e.target.value)}
                   placeholder="e.g. 1234567890abcdef1234567890abcdef"
-                  className="w-full p-2.5 border border-[var(--md-sys-color-outline)] rounded-xl focus:ring-2 focus:ring-neutral-400/30 focus:border-[var(--md-sys-color-primary)] text-sm bg-[var(--md-sys-color-surface-container-lowest)] text-[var(--md-sys-color-on-surface)]"
+                  className="ym-input"
                 />
               </div>
             </div>
@@ -2790,13 +2737,13 @@ export default function App() {
             <div className="mt-6 flex justify-end gap-3">
               <button 
                 onClick={() => setShowSettings(false)}
-                className="px-4 py-2 text-[var(--md-sys-color-primary)] hover:bg-[var(--md-sys-color-surface-container-highest)] rounded-full text-sm font-medium transition-all duration-200"
+                className="ym-btn-ghost px-4 py-2"
               >
                 {t.cancel}
               </button>
               <button 
                 onClick={saveSettings}
-                className="px-4 py-2 bg-[var(--md-sys-color-primary)] hover:brightness-110 text-[var(--md-sys-color-on-primary)] rounded-full text-sm font-medium transition-all duration-200"
+                className="ym-btn-primary px-4 py-2 text-sm"
               >
                 {t.save}
               </button>

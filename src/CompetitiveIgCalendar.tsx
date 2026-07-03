@@ -44,13 +44,13 @@ function getBucket<T>(by: Record<string, T[]>, pilot: string): T[] {
 
 /** 七个试点固定调色 — 黑白简约风灰阶区分 */
 export const PILOT_DOT_COLORS = [
-  '#171717',
-  '#404040',
-  '#737373',
-  '#a3a3a3',
+  '#1f1f1f',
+  '#666666',
+  '#999999',
+  '#c2c2c2',
   '#525252',
-  '#262626',
-  '#d4d4d4',
+  '#404040',
+  '#e9e9e9',
 ];
 
 type Labels = {
