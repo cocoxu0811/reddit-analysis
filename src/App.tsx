@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_INSTAGRAM_HANDLES } from '../competitive/config';
 import { CompetitiveIgCalendar } from './CompetitiveIgCalendar';
+import { AssetLibrary } from './AssetLibrary';
+import { KnowledgeLibrary } from './KnowledgeLibrary';
 import { buildInstagramSocialDashboard, weekdayLabel } from './socialDashboard';
 import {
   Upload,
@@ -21,6 +23,8 @@ import {
   BarChart2,
   LayoutDashboard,
   CheckCircle2,
+  Images,
+  BookOpen,
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import Papa from 'papaparse';
@@ -299,6 +303,10 @@ const translations = {
     taskHeroCompetitiveSub: "Sync Instagram pilots and compare posting patterns.",
     taskHeroSocial: "Social insights",
     taskHeroSocialSub: "Dashboards built from your competitive Instagram cache.",
+    taskHeroAssets: "Product assets",
+    taskHeroAssetsSub: "Store product photos and generate platform-ready images with AI.",
+    taskHeroKnowledge: "Knowledge base",
+    taskHeroKnowledgeSub: "RAG layer for brand guides, product copy, and high-performing examples.",
     readyToCreate: "Ready to create?",
     promptStart: "Start",
     dataInput: "Data Input",
@@ -448,6 +456,9 @@ const translations = {
     monitorIntentComplaints: "Complaints",
     navGroupReddit: "Reddit",
     navGroupInstagram: "Instagram",
+    navGroupAssets: "Assets",
+    navAssets: "Asset library",
+    navKnowledge: "Knowledge base",
     navSocial: "Social analytics",
     socialDashTitle: "Social analytics",
     socialDashIntro:
@@ -490,6 +501,10 @@ const translations = {
     taskHeroCompetitiveSub: "同步 Instagram 竞品账号并对比发帖节奏。",
     taskHeroSocial: "社交洞察",
     taskHeroSocialSub: "基于竞品缓存构建 Instagram 数据看板。",
+    taskHeroAssets: "产品素材库",
+    taskHeroAssetsSub: "存放企业产品图，按平台风格 AI 生成适配图。",
+    taskHeroKnowledge: "知识库 RAG",
+    taskHeroKnowledgeSub: "品牌指南、产品文案与高效范例的向量检索层。",
     readyToCreate: "准备开始？",
     promptStart: "开始",
     dataInput: "数据输入",
@@ -638,6 +653,9 @@ const translations = {
     monitorIntentComplaints: "抱怨",
     navGroupReddit: "Reddit",
     navGroupInstagram: "Instagram",
+    navGroupAssets: "素材",
+    navAssets: "素材库",
+    navKnowledge: "知识库",
     navSocial: "社媒分析",
     socialDashTitle: "社媒分析",
     socialDashIntro:
@@ -672,7 +690,7 @@ export default function App() {
   const HISTORY_STORAGE_KEY = 'redditAnalysisHistory';
   const [language, setLanguage] = useState<'en' | 'zh'>('zh');
   const [activePage, setActivePage] = useState<
-    'analyze' | 'history' | 'content' | 'monitor' | 'competitive' | 'social'
+    'analyze' | 'history' | 'content' | 'monitor' | 'competitive' | 'social' | 'assets' | 'knowledge'
   >('analyze');
   const [inputText, setInputText] = useState('');
   const [redditUrl, setRedditUrl] = useState('');
@@ -774,6 +792,11 @@ export default function App() {
     { id: 'social' as const, icon: LayoutDashboard, label: t.navSocial },
   ];
 
+  const assetNavItems = [
+    { id: 'assets' as const, icon: Images, label: t.navAssets },
+    { id: 'knowledge' as const, icon: BookOpen, label: t.navKnowledge },
+  ];
+
   const pageHero = {
     monitor: { title: t.taskHeroMonitor, subtitle: t.taskHeroMonitorSub },
     analyze: { title: t.taskHeroAnalyze, subtitle: t.taskHeroAnalyzeSub },
@@ -781,6 +804,8 @@ export default function App() {
     content: { title: t.taskHeroCreate, subtitle: t.taskHeroCreateSub },
     competitive: { title: t.taskHeroCompetitive, subtitle: t.taskHeroCompetitiveSub },
     social: { title: t.taskHeroSocial, subtitle: t.taskHeroSocialSub },
+    assets: { title: t.taskHeroAssets, subtitle: t.taskHeroAssetsSub },
+    knowledge: { title: t.taskHeroKnowledge, subtitle: t.taskHeroKnowledgeSub },
   }[activePage];
 
   const getAgentToolLabel = (tool: string) => {
@@ -1682,6 +1707,22 @@ export default function App() {
               <div className="ym-section-label">{t.navGroupInstagram}</div>
               <div className="space-y-0.5">
                 {instagramNavItems.map(({ id, icon: Icon, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActivePage(id)}
+                    className={`ym-nav-item ${activePage === id ? 'ym-nav-item-active' : ''}`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="ym-section-label">{t.navGroupAssets}</div>
+              <div className="space-y-0.5">
+                {assetNavItems.map(({ id, icon: Icon, label }) => (
                   <button
                     key={id}
                     type="button"
@@ -2871,6 +2912,10 @@ export default function App() {
                 </div>
               )}
           </section>
+        ) : activePage === 'assets' ? (
+          <AssetLibrary language={language} />
+        ) : activePage === 'knowledge' ? (
+          <KnowledgeLibrary language={language} />
         ) : null}
         </div>
       </main>

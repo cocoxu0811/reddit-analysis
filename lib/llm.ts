@@ -1,4 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import {
+  buildRagPromptSection,
+  buildRagQueryFromPrompt,
+  buildRagQueryFromReport,
+} from "./ragContext.js";
 
 export type AiProvider = "gemini" | "minimax";
 
@@ -295,7 +300,8 @@ export async function generateContentIdeas(
   language: "en" | "zh",
   tone: string,
   provider: AiProvider = getDefaultAiProvider(),
-  count: number = 6
+  count: number = 6,
+  options: { useRag?: boolean } = {}
 ): Promise<ContentIdeaOutput[]> {
   const n = Math.min(Math.max(count, 1), 10);
   const td = TONE_DESC[tone] ?? TONE_DESC.question;
@@ -310,6 +316,19 @@ export async function generateContentIdeas(
     `Each of the ${n} posts`
   ) : "";
 
+  let ragBlock = "";
+  if (options.useRag !== false) {
+    try {
+      ragBlock = await buildRagPromptSection({
+        query: buildRagQueryFromReport(report),
+        language,
+        topK: 5,
+      });
+    } catch {
+      /* RAG optional — continue without context */
+    }
+  }
+
   const prompt = `
 You are a Reddit content strategist. Based on this Reddit community analysis, generate exactly **${n}** distinct post ideas that fit the **exact domain** of the discussions.
 
@@ -319,7 +338,7 @@ You are a Reddit content strategist. Based on this Reddit community analysis, ge
 - Praised Features: ${report.praisedFeatures.slice(0, 5).join(" | ")}
 - Mentioned Brands: ${report.mentionedBrands.slice(0, 5).join(" | ")}
 - High-Frequency Words: ${report.highFrequencyWords.slice(0, 5).join(" | ")}
-
+${ragBlock}
 ## Tone for ALL ideas
 ${toneDesc}
 ${ANTI_PATTERN_RULES}
@@ -446,7 +465,8 @@ export async function generateContentFromPrompt(
   tone: string = "question",
   provider: AiProvider = getDefaultAiProvider(),
   examplePosts: string[] = [],
-  count: number = 6
+  count: number = 6,
+  options: { useRag?: boolean } = {}
 ): Promise<ContentIdeaOutput[]> {
   const n = Math.min(Math.max(count, 1), 10);
   const td = TONE_DESC[tone] ?? TONE_DESC.question;
@@ -455,6 +475,19 @@ export async function generateContentFromPrompt(
     language === "zh"
       ? "所有文字（title、angle、postTitle、postBody）必须用简体中文。"
       : "All text (title, angle, postTitle, postBody) must be in English.";
+
+  let ragBlock = "";
+  if (options.useRag !== false) {
+    try {
+      ragBlock = await buildRagPromptSection({
+        query: buildRagQueryFromPrompt(subreddit, userInstruction),
+        language,
+        topK: 5,
+      });
+    } catch {
+      /* RAG optional */
+    }
+  }
 
   const examplesBlock =
     examplePosts.length > 0
@@ -489,7 +522,7 @@ ${userInstruction}
 
 ## Target Subreddit
 ${subreddit}
-
+${ragBlock}
 ## Tone for ALL ideas
 ${toneDesc}
 ${examplesBlock}

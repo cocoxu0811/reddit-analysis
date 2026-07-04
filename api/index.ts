@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../lib/loadEnv.js";
 import express from "express";
 import { Client } from "@notionhq/client";
 import path from "path";
@@ -12,6 +12,9 @@ import {
   suggestSubredditsForIdeas,
 } from "../lib/llm.js";
 import { chat as agentChat, type ChatResult } from "../lib/agent.js";
+import { registerAssetRoutes } from "../lib/registerAssetRoutes.js";
+import { registerKnowledgeRoutes } from "../lib/registerKnowledgeRoutes.js";
+import { ingestGeneratedIdeas, isKnowledgeConfigured } from "../lib/knowledge.js";
 import type { ModelMessage } from "ai";
 /** 竞品模块会拉 sqlite（node:sqlite，需 Node 22+）；勿静态 import，否则 Vercel 上未加载 Node 22 时整包 /api 启动失败 */
 
@@ -104,18 +107,37 @@ app.post("/api/content/subreddits", async (req, res) => {
 
 app.post("/api/content/ideas", async (req, res) => {
   try {
-    const { report, language = "en", tone = "question", aiProvider = "gemini" } = req.body || {};
+    const {
+      report,
+      language = "en",
+      tone = "question",
+      aiProvider = "gemini",
+      useRag = true,
+      persistToKnowledge = false,
+    } = req.body || {};
     if (!report || typeof report !== "object") {
       return res.status(400).json({ success: false, error: "Missing report" });
     }
+    const lang = language === "zh" ? "zh" : "en";
     const provider = normalizeAiProvider(aiProvider);
     const ideas = await generateContentIdeas(
       report as any,
-      language === "zh" ? "zh" : "en",
+      lang,
       String(tone),
-      provider
+      provider,
+      6,
+      { useRag: useRag !== false }
     );
-    res.json({ success: true, provider, ideas });
+    let knowledgeSaved = false;
+    if (persistToKnowledge && isKnowledgeConfigured()) {
+      try {
+        await ingestGeneratedIdeas({ ideas, language: lang });
+        knowledgeSaved = true;
+      } catch (e) {
+        console.warn("[knowledge] persist ideas failed:", e);
+      }
+    }
+    res.json({ success: true, provider, ideas, ragEnabled: useRag !== false, knowledgeSaved });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || "Content idea generation failed" });
   }
@@ -130,6 +152,8 @@ app.post("/api/content/generate", async (req, res) => {
       tone = "question",
       aiProvider = "gemini",
       count = 6,
+      useRag = true,
+      persistToKnowledge = false,
     } = req.body || {};
 
     const sub = String(subreddit).trim();
@@ -140,17 +164,28 @@ app.post("/api/content/generate", async (req, res) => {
         .json({ success: false, error: "Missing subreddit or instruction" });
     }
 
+    const lang = language === "zh" ? "zh" : "en";
     const provider = normalizeAiProvider(aiProvider);
     const ideas = await generateContentFromPrompt(
       sub,
       instr,
-      language === "zh" ? "zh" : "en",
+      lang,
       String(tone),
       provider,
       [],
-      Number(count) || 6
+      Number(count) || 6,
+      { useRag: useRag !== false }
     );
-    res.json({ success: true, provider, ideas });
+    let knowledgeSaved = false;
+    if (persistToKnowledge && isKnowledgeConfigured()) {
+      try {
+        await ingestGeneratedIdeas({ ideas, language: lang, tags: [sub.replace(/^r\//i, "")] });
+        knowledgeSaved = true;
+      } catch (e) {
+        console.warn("[knowledge] persist generate failed:", e);
+      }
+    }
+    res.json({ success: true, provider, ideas, ragEnabled: useRag !== false, knowledgeSaved });
   } catch (error: any) {
     res
       .status(500)
@@ -177,6 +212,9 @@ app.delete("/api/history", (_req, res) => {
 });
 
 /** Reddit 链接转换见独立函数 api/reddit/convert.ts（避免经 Express 整包加载失败） */
+
+registerAssetRoutes(app);
+registerKnowledgeRoutes(app);
 
 app.post("/api/notion/export", async (req, res) => {
   try {

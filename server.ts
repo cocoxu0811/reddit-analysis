@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./lib/loadEnv.js";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { Client } from "@notionhq/client";
@@ -22,6 +22,9 @@ import {
 import { getDb, getMonitorCacheKv, replaceHistoryInDb, loadHistoryFromDb, setMonitorCacheKv } from "./db/sqlite.js";
 import { fetchRedditJsonForConvert } from "./lib/redditLinkConvert.js";
 import { chat as agentChat, type ChatResult } from "./lib/agent.js";
+import { registerAssetRoutes } from "./lib/registerAssetRoutes.js";
+import { registerKnowledgeRoutes } from "./lib/registerKnowledgeRoutes.js";
+import { ingestGeneratedIdeas, isKnowledgeConfigured } from "./lib/knowledge.js";
 import type { ModelMessage } from "ai";
 
 /** 与 db/sqlite、competitive/runDaily 一致：请在项目根目录启动进程 */
@@ -121,18 +124,37 @@ async function startServer() {
 
   app.post("/api/content/ideas", async (req, res) => {
     try {
-      const { report, language = "en", tone = "question", aiProvider = "gemini" } = req.body || {};
+      const {
+        report,
+        language = "en",
+        tone = "question",
+        aiProvider = "gemini",
+        useRag = true,
+        persistToKnowledge = false,
+      } = req.body || {};
       if (!report || typeof report !== "object") {
         return res.status(400).json({ success: false, error: "Missing report" });
       }
+      const lang = language === "zh" ? "zh" : "en";
       const provider = normalizeAiProvider(aiProvider);
       const ideas = await generateContentIdeas(
         report as any,
-        language === "zh" ? "zh" : "en",
+        lang,
         String(tone),
-        provider
+        provider,
+        6,
+        { useRag: useRag !== false }
       );
-      res.json({ success: true, provider, ideas });
+      let knowledgeSaved = false;
+      if (persistToKnowledge && isKnowledgeConfigured()) {
+        try {
+          await ingestGeneratedIdeas({ ideas, language: lang });
+          knowledgeSaved = true;
+        } catch (e) {
+          console.warn("[knowledge] persist ideas failed:", e);
+        }
+      }
+      res.json({ success: true, provider, ideas, ragEnabled: useRag !== false, knowledgeSaved });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || "Content idea generation failed" });
     }
@@ -148,6 +170,8 @@ async function startServer() {
         tone = "question",
         aiProvider = "gemini",
         count = 6,
+        useRag = true,
+        persistToKnowledge = false,
       } = req.body || {};
 
       const sub = String(subreddit).trim();
@@ -158,17 +182,28 @@ async function startServer() {
           .json({ success: false, error: "Missing subreddit or instruction" });
       }
 
+      const lang = language === "zh" ? "zh" : "en";
       const provider = normalizeAiProvider(aiProvider);
       const ideas = await generateContentFromPrompt(
         sub,
         instr,
-        language === "zh" ? "zh" : "en",
+        lang,
         String(tone),
         provider,
         [],
-        Number(count) || 6
+        Number(count) || 6,
+        { useRag: useRag !== false }
       );
-      res.json({ success: true, provider, ideas });
+      let knowledgeSaved = false;
+      if (persistToKnowledge && isKnowledgeConfigured()) {
+        try {
+          await ingestGeneratedIdeas({ ideas, language: lang, tags: [sub.replace(/^r\//i, "")] });
+          knowledgeSaved = true;
+        } catch (e) {
+          console.warn("[knowledge] persist generate failed:", e);
+        }
+      }
+      res.json({ success: true, provider, ideas, ragEnabled: useRag !== false, knowledgeSaved });
     } catch (error: any) {
       res
         .status(500)
@@ -454,6 +489,9 @@ async function startServer() {
       res.status(500).json({ success: false, error: error.message || "Monitor scan failed" });
     }
   });
+
+  registerAssetRoutes(app);
+  registerKnowledgeRoutes(app);
 
   app.post("/api/reddit/convert", async (req, res) => {
     try {

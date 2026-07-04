@@ -372,6 +372,126 @@ body {
   border-top: 1px solid var(--ym-subtle-border);
 }
 
+/* ── Asset library ── */
+.ym-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ym-asset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: var(--ym-radius-card);
+  border: 1px solid var(--ym-input-border);
+  background: var(--ym-surface);
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+
+.ym-asset-card:hover {
+  border-color: var(--ym-border);
+}
+
+.ym-asset-card-active {
+  border-color: var(--ym-primary);
+  box-shadow: 0 0 0 1px var(--ym-primary);
+}
+
+.ym-asset-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--ym-radius-md);
+  background: var(--ym-muted);
+}
+
+.ym-asset-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.ym-asset-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ym-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ym-asset-count {
+  font-size: 0.6875rem;
+  color: var(--ym-caption);
+}
+
+.ym-platform-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ym-platform-tab {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--ym-radius-pill);
+  border: 1px solid var(--ym-input-border);
+  background: var(--ym-surface);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ym-muted-foreground);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ym-platform-tab-sub {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--ym-caption);
+}
+
+.ym-platform-tab-active {
+  border-color: var(--ym-primary);
+  background: var(--ym-muted);
+  color: var(--ym-foreground);
+}
+
+.ym-gen-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border-radius: var(--ym-radius-md);
+  background: var(--ym-muted);
+}
+
+.ym-gen-thumb {
+  width: 5rem;
+  height: 5rem;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: var(--ym-radius-sm);
+  background: var(--ym-surface);
+}
+
+.ym-gen-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  color: var(--ym-caption);
+  text-align: center;
+  padding: 0.25rem;
+}
+
 .font-display {
   font-family: var(--ym-font-display);
 }
