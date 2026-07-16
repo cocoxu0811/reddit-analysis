@@ -12,9 +12,12 @@ import {
   listAssets,
   listGenerations,
   listPlatformStyles,
+  updateAssetIdentity,
+  updateGenerationReview,
 } from "./assetLibrary.js";
 import { generatePlatformImage } from "./imageGen.js";
-import { isPlatformId } from "./platformStyles.js";
+import { isPlatformId, type ProductIdentityForPrompt } from "./platformStyles.js";
+import { isReviewAvailable, reviewGeneratedImage } from "./imageReview.js";
 
 const ALLOWED_MIME = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -87,10 +90,39 @@ export function registerAssetRoutes(app: Express): void {
         buffer: file.buffer,
         mimeType: file.mimetype,
         tags,
+        identity: {
+          primaryColors: parseTags(req.body?.primaryColors),
+          material: String(req.body?.material ?? ""),
+          shapeKeywords: String(req.body?.shapeKeywords ?? ""),
+          brandElements: String(req.body?.brandElements ?? ""),
+          immutableFeatures: String(req.body?.immutableFeatures ?? ""),
+        },
       });
       res.json({ success: true, asset });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Upload failed";
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.patch("/api/assets/:id/identity", async (req: Request, res: Response) => {
+    try {
+      assertSupabaseReady();
+      const asset = await getAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ success: false, error: "Asset not found" });
+      }
+      const body = req.body || {};
+      const updated = await updateAssetIdentity(asset.id, {
+        primaryColors: body.primaryColors !== undefined ? parseTags(body.primaryColors) : undefined,
+        material: body.material !== undefined ? String(body.material) : undefined,
+        shapeKeywords: body.shapeKeywords !== undefined ? String(body.shapeKeywords) : undefined,
+        brandElements: body.brandElements !== undefined ? String(body.brandElements) : undefined,
+        immutableFeatures: body.immutableFeatures !== undefined ? String(body.immutableFeatures) : undefined,
+      });
+      res.json({ success: true, asset: updated });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update identity";
       res.status(500).json({ success: false, error: message });
     }
   });
@@ -165,12 +197,23 @@ export function registerAssetRoutes(app: Express): void {
       });
       generationId = pending.id;
 
+      const identityForPrompt: ProductIdentityForPrompt = {
+        description: asset.description,
+        primaryColors: asset.identity.primaryColors,
+        material: asset.identity.material,
+        shapeKeywords: asset.identity.shapeKeywords,
+        brandElements: asset.identity.brandElements,
+        immutableFeatures: asset.identity.immutableFeatures,
+      };
+
       const { buffer, promptUsed, mimeType } = await generatePlatformImage({
         sourceBuffer,
         mimeType: asset.mimeType,
         platformStyle,
         productName: asset.name,
+        description: asset.description,
         extraPrompt: typeof extraPrompt === "string" ? extraPrompt : undefined,
+        identity: identityForPrompt,
       });
 
       const generation = await completeGenerationRecord(generationId, {
@@ -179,7 +222,28 @@ export function registerAssetRoutes(app: Express): void {
         promptUsed,
       });
 
-      res.json({ success: true, generation });
+      let review = null;
+      if (isReviewAvailable()) {
+        try {
+          const reviewResult = await reviewGeneratedImage({
+            originalBuffer: sourceBuffer,
+            originalMimeType: asset.mimeType,
+            generatedBuffer: buffer,
+            generatedMimeType: mimeType,
+            productName: asset.name,
+            identity: identityForPrompt,
+          });
+          await updateGenerationReview(generation.id, {
+            status: reviewResult.status,
+            notes: reviewResult.notes,
+          });
+          review = reviewResult;
+        } catch {
+          /* review is non-blocking */
+        }
+      }
+
+      res.json({ success: true, generation: { ...generation, reviewStatus: review?.status ?? null, reviewNotes: review?.notes ?? null }, review });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Generation failed";
       if (generationId) {

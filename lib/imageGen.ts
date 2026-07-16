@@ -4,6 +4,7 @@ import {
   parseOpenAiSize,
   type PlatformId,
   type PlatformStyle,
+  type ProductIdentityForPrompt,
 } from "./platformStyles.js";
 
 function requireOpenAiKey(): string {
@@ -23,12 +24,21 @@ export async function generatePlatformImage(input: {
   mimeType: string;
   platformStyle: PlatformStyle;
   productName?: string;
+  description?: string;
   extraPrompt?: string;
+  identity?: ProductIdentityForPrompt;
 }): Promise<{ buffer: Buffer; promptUsed: string; mimeType: string }> {
   const client = new OpenAI({ apiKey: requireOpenAiKey() });
+
+  const identityForPrompt: ProductIdentityForPrompt = {
+    ...input.identity,
+    description: input.description || input.identity?.description,
+  };
+
   const promptUsed = buildPlatformPrompt(input.platformStyle, {
     productName: input.productName,
     extraPrompt: input.extraPrompt,
+    identity: identityForPrompt,
   });
 
   const model = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2";

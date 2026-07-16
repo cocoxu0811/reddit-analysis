@@ -24,6 +24,14 @@ type PlatformStyle = {
   sortOrder: number;
 };
 
+type ProductIdentity = {
+  primaryColors: string[];
+  material: string;
+  shapeKeywords: string;
+  brandElements: string;
+  immutableFeatures: string;
+};
+
 type ProductAsset = {
   id: string;
   name: string;
@@ -32,6 +40,7 @@ type ProductAsset = {
   publicUrl: string;
   mimeType: string;
   tags: string[];
+  identity: ProductIdentity;
   createdAt: string;
   updatedAt: string;
   generationCount?: number;
@@ -47,6 +56,8 @@ type AssetGeneration = {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   errorMessage: string | null;
   model: string;
+  reviewStatus: 'passed' | 'warning' | 'failed' | null;
+  reviewNotes: string | null;
   createdAt: string;
 };
 
@@ -59,6 +70,18 @@ const copy = {
     descLabel: 'Description (optional)',
     descPlaceholder: 'Color, material, key selling points…',
     tagsLabel: 'Tags (comma separated)',
+    idCardTitle: 'Product Identity Card',
+    idCardHint: 'Fill in for better consistency across generated images.',
+    colorsLabel: 'Primary colors (hex, comma separated)',
+    colorsPlaceholder: '#E63946, #1D3557',
+    materialLabel: 'Material / texture',
+    materialPlaceholder: 'e.g. matte metal + silicone tips',
+    shapeLabel: 'Shape keywords',
+    shapePlaceholder: 'e.g. rounded in-ear, short stem, oval charging case',
+    brandLabel: 'Brand elements to preserve',
+    brandPlaceholder: 'e.g. logo on right earpiece, LED on case front',
+    immutableLabel: 'Must NOT change',
+    immutablePlaceholder: 'e.g. logo orientation, main body color',
     uploadBtn: 'Upload to library',
     uploading: 'Uploading…',
     libraryTitle: 'Asset library',
@@ -70,10 +93,16 @@ const copy = {
     generateBtn: 'Generate',
     generating: 'Generating…',
     deleteAsset: 'Delete asset',
+    editIdentity: 'Edit identity card',
+    saveIdentity: 'Save',
+    savingIdentity: 'Saving…',
     copyLink: 'Copy link',
     download: 'Download',
     statusFailed: 'Failed',
     statusProcessing: 'Processing',
+    reviewPassed: 'QA: Passed',
+    reviewWarning: 'QA: Warning',
+    reviewFailed: 'QA: Failed',
     toastUploadOk: 'Asset uploaded',
     toastUploadFail: 'Upload failed',
     toastGenOk: 'Image generated',
@@ -82,6 +111,8 @@ const copy = {
     toastDeleteFail: 'Delete failed',
     toastCopyOk: 'Link copied',
     toastLoadFail: 'Failed to load assets',
+    toastIdentityOk: 'Identity card saved',
+    toastIdentityFail: 'Failed to save identity',
     configHint:
       'Requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY on the server.',
   },
@@ -93,6 +124,18 @@ const copy = {
     descLabel: '描述（可选）',
     descPlaceholder: '颜色、材质、核心卖点…',
     tagsLabel: '标签（逗号分隔）',
+    idCardTitle: '产品身份卡',
+    idCardHint: '填写后可显著提升跨平台生成一致性。',
+    colorsLabel: '主色调（HEX，逗号分隔）',
+    colorsPlaceholder: '#E63946, #1D3557',
+    materialLabel: '材质 / 质感',
+    materialPlaceholder: '例如：哑光金属 + 硅胶耳套',
+    shapeLabel: '外形关键词',
+    shapePlaceholder: '例如：圆润入耳式、短柄、椭圆充电盒',
+    brandLabel: '需保留的品牌元素',
+    brandPlaceholder: '例如：右耳壳 logo、充电盒前脸指示灯',
+    immutableLabel: '绝对不可改',
+    immutablePlaceholder: '例如：logo 方向、产品主体颜色',
     uploadBtn: '上传到素材库',
     uploading: '上传中…',
     libraryTitle: '素材库',
@@ -104,10 +147,16 @@ const copy = {
     generateBtn: '生成',
     generating: '生成中…',
     deleteAsset: '删除素材',
+    editIdentity: '编辑身份卡',
+    saveIdentity: '保存',
+    savingIdentity: '保存中…',
     copyLink: '复制链接',
     download: '下载',
     statusFailed: '失败',
     statusProcessing: '处理中',
+    reviewPassed: '质检：通过',
+    reviewWarning: '质检：需注意',
+    reviewFailed: '质检：不通过',
     toastUploadOk: '素材已上传',
     toastUploadFail: '上传失败',
     toastGenOk: '图片已生成',
@@ -116,6 +165,8 @@ const copy = {
     toastDeleteFail: '删除失败',
     toastCopyOk: '链接已复制',
     toastLoadFail: '加载素材失败',
+    toastIdentityOk: '身份卡已保存',
+    toastIdentityFail: '保存失败',
     configHint: '服务端需配置 SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY、OPENAI_API_KEY。',
   },
 } as const;
@@ -144,6 +195,20 @@ export function AssetLibrary({ language }: Props) {
   const [uploadTags, setUploadTags] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [extraPrompt, setExtraPrompt] = useState('');
+  // Identity card fields (upload form)
+  const [uploadColors, setUploadColors] = useState('');
+  const [uploadMaterial, setUploadMaterial] = useState('');
+  const [uploadShape, setUploadShape] = useState('');
+  const [uploadBrand, setUploadBrand] = useState('');
+  const [uploadImmutable, setUploadImmutable] = useState('');
+  // Identity card edit (detail panel)
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [savingIdentity, setSavingIdentity] = useState(false);
+  const [editColors, setEditColors] = useState('');
+  const [editMaterial, setEditMaterial] = useState('');
+  const [editShape, setEditShape] = useState('');
+  const [editBrand, setEditBrand] = useState('');
+  const [editImmutable, setEditImmutable] = useState('');
 
   const selectedAsset = assets.find((a) => a.id === selectedId) ?? null;
 
@@ -187,6 +252,7 @@ export function AssetLibrary({ language }: Props) {
   }, [loadStyles, loadAssets]);
 
   useEffect(() => {
+    setEditingIdentity(false);
     if (selectedId) void loadAssetDetail(selectedId);
     else setGenerations([]);
   }, [selectedId, loadAssetDetail]);
@@ -216,6 +282,11 @@ export function AssetLibrary({ language }: Props) {
       form.append('name', uploadName.trim());
       form.append('description', uploadDesc.trim());
       form.append('tags', uploadTags.trim());
+      form.append('primaryColors', uploadColors.trim());
+      form.append('material', uploadMaterial.trim());
+      form.append('shapeKeywords', uploadShape.trim());
+      form.append('brandElements', uploadBrand.trim());
+      form.append('immutableFeatures', uploadImmutable.trim());
       const res = await fetch('/api/assets/upload', { method: 'POST', body: form });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'upload failed');
@@ -224,6 +295,11 @@ export function AssetLibrary({ language }: Props) {
       setUploadName('');
       setUploadDesc('');
       setUploadTags('');
+      setUploadColors('');
+      setUploadMaterial('');
+      setUploadShape('');
+      setUploadBrand('');
+      setUploadImmutable('');
       if (fileRef.current) fileRef.current.value = '';
       await loadAssets();
       if (data.asset?.id) setSelectedId(data.asset.id);
@@ -361,6 +437,35 @@ export function AssetLibrary({ language }: Props) {
                 placeholder="electronics, hero"
               />
             </div>
+            <details className="group">
+              <summary className="text-xs font-medium text-[var(--ym-primary)] cursor-pointer select-none flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▶</span>
+                {t.idCardTitle}
+                <span className="text-[var(--ym-caption)] font-normal ml-1">— {t.idCardHint}</span>
+              </summary>
+              <div className="mt-3 space-y-3 pl-3 border-l-2 border-[var(--ym-input-border)]">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.colorsLabel}</label>
+                  <input className="ym-input" value={uploadColors} onChange={(e) => setUploadColors(e.target.value)} placeholder={t.colorsPlaceholder} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.materialLabel}</label>
+                  <input className="ym-input" value={uploadMaterial} onChange={(e) => setUploadMaterial(e.target.value)} placeholder={t.materialPlaceholder} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.shapeLabel}</label>
+                  <input className="ym-input" value={uploadShape} onChange={(e) => setUploadShape(e.target.value)} placeholder={t.shapePlaceholder} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.brandLabel}</label>
+                  <input className="ym-input" value={uploadBrand} onChange={(e) => setUploadBrand(e.target.value)} placeholder={t.brandPlaceholder} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.immutableLabel}</label>
+                  <input className="ym-input" value={uploadImmutable} onChange={(e) => setUploadImmutable(e.target.value)} placeholder={t.immutablePlaceholder} />
+                </div>
+              </div>
+            </details>
             <button
               type="button"
               className="ym-btn-primary w-full py-2.5 text-sm"
@@ -428,6 +533,106 @@ export function AssetLibrary({ language }: Props) {
                   className="w-full max-h-72 object-contain rounded-[12px] bg-[var(--ym-muted)]"
                 />
 
+                {/* Identity Card (view / edit) */}
+                <div className="rounded-[12px] border border-[var(--ym-input-border)] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold text-[var(--ym-foreground)]">{t.idCardTitle}</h4>
+                    {!editingIdentity ? (
+                      <button type="button" className="ym-btn-ghost text-xs py-1 px-2" onClick={() => {
+                        const id = selectedAsset.identity;
+                        setEditColors(id.primaryColors.join(', '));
+                        setEditMaterial(id.material);
+                        setEditShape(id.shapeKeywords);
+                        setEditBrand(id.brandElements);
+                        setEditImmutable(id.immutableFeatures);
+                        setEditingIdentity(true);
+                      }}>
+                        {t.editIdentity}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="ym-btn-primary text-xs py-1 px-3"
+                        disabled={savingIdentity}
+                        onClick={async () => {
+                          setSavingIdentity(true);
+                          try {
+                            const res = await fetch(`/api/assets/${selectedAsset.id}/identity`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                primaryColors: editColors.trim(),
+                                material: editMaterial.trim(),
+                                shapeKeywords: editShape.trim(),
+                                brandElements: editBrand.trim(),
+                                immutableFeatures: editImmutable.trim(),
+                              }),
+                            });
+                            const data = await res.json();
+                            if (!data.success) throw new Error(data.error || 'save failed');
+                            toast.success(t.toastIdentityOk);
+                            setEditingIdentity(false);
+                            await loadAssets();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : t.toastIdentityFail);
+                          } finally {
+                            setSavingIdentity(false);
+                          }
+                        }}
+                      >
+                        {savingIdentity ? <Loader2 className="w-3 h-3 animate-spin" /> : t.saveIdentity}
+                      </button>
+                    )}
+                  </div>
+                  {editingIdentity ? (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs text-[var(--ym-caption)] mb-0.5">{t.colorsLabel}</label>
+                        <input className="ym-input text-xs" value={editColors} onChange={(e) => setEditColors(e.target.value)} placeholder={t.colorsPlaceholder} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[var(--ym-caption)] mb-0.5">{t.materialLabel}</label>
+                        <input className="ym-input text-xs" value={editMaterial} onChange={(e) => setEditMaterial(e.target.value)} placeholder={t.materialPlaceholder} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[var(--ym-caption)] mb-0.5">{t.shapeLabel}</label>
+                        <input className="ym-input text-xs" value={editShape} onChange={(e) => setEditShape(e.target.value)} placeholder={t.shapePlaceholder} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[var(--ym-caption)] mb-0.5">{t.brandLabel}</label>
+                        <input className="ym-input text-xs" value={editBrand} onChange={(e) => setEditBrand(e.target.value)} placeholder={t.brandPlaceholder} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[var(--ym-caption)] mb-0.5">{t.immutableLabel}</label>
+                        <input className="ym-input text-xs" value={editImmutable} onChange={(e) => setEditImmutable(e.target.value)} placeholder={t.immutablePlaceholder} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[var(--ym-muted-foreground)] space-y-1">
+                      {selectedAsset.identity.primaryColors.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[var(--ym-caption)]">{t.colorsLabel.split('(')[0].trim()}:</span>
+                          <span className="flex gap-1">
+                            {selectedAsset.identity.primaryColors.map((c, i) => (
+                              <span key={i} className="inline-flex items-center gap-1">
+                                <span className="w-3 h-3 rounded-full border border-[var(--ym-input-border)]" style={{ background: c }} />
+                                <code className="text-[10px]">{c}</code>
+                              </span>
+                            ))}
+                          </span>
+                        </div>
+                      )}
+                      {selectedAsset.identity.material && <div><span className="text-[var(--ym-caption)]">{t.materialLabel}:</span> {selectedAsset.identity.material}</div>}
+                      {selectedAsset.identity.shapeKeywords && <div><span className="text-[var(--ym-caption)]">{t.shapeLabel}:</span> {selectedAsset.identity.shapeKeywords}</div>}
+                      {selectedAsset.identity.brandElements && <div><span className="text-[var(--ym-caption)]">{t.brandLabel}:</span> {selectedAsset.identity.brandElements}</div>}
+                      {selectedAsset.identity.immutableFeatures && <div><span className="text-[var(--ym-caption)]">{t.immutableLabel}:</span> {selectedAsset.identity.immutableFeatures}</div>}
+                      {!selectedAsset.identity.primaryColors.length && !selectedAsset.identity.material && !selectedAsset.identity.shapeKeywords && !selectedAsset.identity.brandElements && !selectedAsset.identity.immutableFeatures && (
+                        <span className="italic text-[var(--ym-caption)]">{t.idCardHint}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="ym-platform-tabs" role="tablist">
                   {styles.map((style) => (
                     <button
@@ -488,6 +693,20 @@ export function AssetLibrary({ language }: Props) {
                             )}
                             <div className="flex-1 min-w-0 space-y-2">
                               <p className="text-xs text-[var(--ym-caption)] line-clamp-2">{gen.promptUsed || '—'}</p>
+                              {gen.reviewStatus && (
+                                <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                  gen.reviewStatus === 'passed' ? 'bg-green-100 text-green-700' :
+                                  gen.reviewStatus === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-red-100 text-red-700'
+                                }`} title={gen.reviewNotes || ''}>
+                                  {gen.reviewStatus === 'passed' ? t.reviewPassed :
+                                   gen.reviewStatus === 'warning' ? t.reviewWarning :
+                                   t.reviewFailed}
+                                </span>
+                              )}
+                              {gen.reviewNotes && gen.reviewStatus !== 'passed' && (
+                                <p className="text-[10px] text-[var(--ym-caption)] italic">{gen.reviewNotes}</p>
+                              )}
                               {gen.errorMessage ? (
                                 <p className="text-xs text-[var(--ym-destructive)]">{gen.errorMessage}</p>
                               ) : null}

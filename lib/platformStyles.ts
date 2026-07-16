@@ -64,22 +64,79 @@ export function isPlatformId(value: unknown): value is PlatformId {
   return typeof value === "string" && (PLATFORM_IDS as readonly string[]).includes(value);
 }
 
+export type ProductIdentityForPrompt = {
+  description?: string;
+  primaryColors?: string[];
+  material?: string;
+  shapeKeywords?: string;
+  brandElements?: string;
+  immutableFeatures?: string;
+};
+
+/**
+ * 4-layer prompt architecture for generation consistency:
+ *   Layer 1 — Product Identity (shared across all platforms)
+ *   Layer 2 — Platform Style (background, lighting, composition)
+ *   Layer 3 — User Instructions (extra prompt from UI)
+ *   Layer 4 — Negative Constraints (what to avoid)
+ */
 export function buildPlatformPrompt(
   style: PlatformStyle,
-  options: { productName?: string; extraPrompt?: string } = {}
+  options: {
+    productName?: string;
+    extraPrompt?: string;
+    identity?: ProductIdentityForPrompt;
+  } = {}
 ): string {
-  const parts = [style.promptTemplate];
+  const sections: string[] = [];
+
+  // ── Layer 1: Product Identity (immutable anchor) ──
+  const idParts: string[] = [];
   if (options.productName?.trim()) {
-    parts.push(`Product name: ${options.productName.trim()}.`);
+    idParts.push(`Product: ${options.productName.trim()}.`);
   }
-  if (style.negativeHints?.trim()) {
-    parts.push(`Avoid: ${style.negativeHints.trim()}.`);
+  const id = options.identity;
+  if (id) {
+    if (id.description?.trim()) {
+      idParts.push(`Description: ${id.description.trim()}.`);
+    }
+    if (id.primaryColors?.length) {
+      idParts.push(`Primary colors: ${id.primaryColors.join(", ")}. These exact colors MUST be preserved.`);
+    }
+    if (id.material?.trim()) {
+      idParts.push(`Material/texture: ${id.material.trim()}.`);
+    }
+    if (id.shapeKeywords?.trim()) {
+      idParts.push(`Shape: ${id.shapeKeywords.trim()}. The product shape and proportions MUST remain accurate.`);
+    }
+    if (id.brandElements?.trim()) {
+      idParts.push(`Brand elements to preserve: ${id.brandElements.trim()}.`);
+    }
+    if (id.immutableFeatures?.trim()) {
+      idParts.push(`CRITICAL — do NOT alter: ${id.immutableFeatures.trim()}.`);
+    }
   }
+  if (idParts.length > 0) {
+    sections.push(`[PRODUCT IDENTITY]\n${idParts.join("\n")}`);
+  }
+
+  // ── Layer 2: Platform Visual Style ──
+  sections.push(`[PLATFORM STYLE]\n${style.promptTemplate}`);
+
+  // ── Layer 3: User Instructions ──
   if (options.extraPrompt?.trim()) {
-    parts.push(`Additional requirements: ${options.extraPrompt.trim()}.`);
+    sections.push(`[ADDITIONAL INSTRUCTIONS]\n${options.extraPrompt.trim()}`);
   }
-  parts.push("Keep the product identity, shape, and branding accurate.");
-  return parts.join(" ");
+
+  // ── Layer 4: Negative Constraints ──
+  const negParts: string[] = [];
+  if (style.negativeHints?.trim()) {
+    negParts.push(style.negativeHints.trim());
+  }
+  negParts.push("distorted product shape, wrong product colors, missing brand logo, altered product proportions");
+  sections.push(`[AVOID]\n${negParts.join(", ")}.`);
+
+  return sections.join("\n\n");
 }
 
 export function parseOpenAiSize(size: string): "1024x1024" | "1024x1536" | "1536x1024" | "auto" {

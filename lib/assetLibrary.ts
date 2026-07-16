@@ -14,6 +14,14 @@ import {
   isPlatformId,
 } from "./platformStyles.js";
 
+export type ProductIdentity = {
+  primaryColors: string[];
+  material: string;
+  shapeKeywords: string;
+  brandElements: string;
+  immutableFeatures: string;
+};
+
 export type ProductAsset = {
   id: string;
   name: string;
@@ -22,6 +30,7 @@ export type ProductAsset = {
   publicUrl: string;
   mimeType: string;
   tags: string[];
+  identity: ProductIdentity;
   createdAt: string;
   updatedAt: string;
   generationCount?: number;
@@ -37,6 +46,8 @@ export type AssetGeneration = {
   status: "pending" | "processing" | "completed" | "failed";
   errorMessage: string | null;
   model: string;
+  reviewStatus: "passed" | "warning" | "failed" | null;
+  reviewNotes: string | null;
   createdAt: string;
 };
 
@@ -49,6 +60,13 @@ function mapAssetRow(row: Record<string, unknown>): ProductAsset {
     publicUrl: String(row.public_url ?? ""),
     mimeType: String(row.mime_type ?? "image/png"),
     tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
+    identity: {
+      primaryColors: Array.isArray(row.primary_colors) ? row.primary_colors.map(String) : [],
+      material: String(row.material ?? ""),
+      shapeKeywords: String(row.shape_keywords ?? ""),
+      brandElements: String(row.brand_elements ?? ""),
+      immutableFeatures: String(row.immutable_features ?? ""),
+    },
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? ""),
     generationCount:
@@ -67,6 +85,8 @@ function mapGenerationRow(row: Record<string, unknown>): AssetGeneration {
     status: String(row.status ?? "pending") as AssetGeneration["status"],
     errorMessage: row.error_message != null ? String(row.error_message) : null,
     model: String(row.model ?? "gpt-image-2"),
+    reviewStatus: row.review_status != null ? String(row.review_status) as AssetGeneration["reviewStatus"] : null,
+    reviewNotes: row.review_notes != null ? String(row.review_notes) : null,
     createdAt: String(row.created_at ?? ""),
   };
 }
@@ -138,11 +158,13 @@ export async function createAsset(input: {
   buffer: Buffer;
   mimeType: string;
   tags?: string[];
+  identity?: Partial<ProductIdentity>;
 }): Promise<ProductAsset> {
   assertSupabaseReady();
   const storagePath = buildAssetStoragePath(input.mimeType);
   const { publicUrl } = await uploadToStorage(storagePath, input.buffer, input.mimeType);
 
+  const id = input.identity ?? {};
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("product_assets")
@@ -153,7 +175,35 @@ export async function createAsset(input: {
       public_url: publicUrl,
       mime_type: input.mimeType,
       tags: input.tags ?? [],
+      primary_colors: id.primaryColors ?? [],
+      material: (id.material ?? "").trim(),
+      shape_keywords: (id.shapeKeywords ?? "").trim(),
+      brand_elements: (id.brandElements ?? "").trim(),
+      immutable_features: (id.immutableFeatures ?? "").trim(),
     })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapAssetRow(data as Record<string, unknown>);
+}
+
+export async function updateAssetIdentity(
+  assetId: string,
+  identity: Partial<ProductIdentity>,
+): Promise<ProductAsset> {
+  assertSupabaseReady();
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (identity.primaryColors !== undefined) updates.primary_colors = identity.primaryColors;
+  if (identity.material !== undefined) updates.material = identity.material.trim();
+  if (identity.shapeKeywords !== undefined) updates.shape_keywords = identity.shapeKeywords.trim();
+  if (identity.brandElements !== undefined) updates.brand_elements = identity.brandElements.trim();
+  if (identity.immutableFeatures !== undefined) updates.immutable_features = identity.immutableFeatures.trim();
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("product_assets")
+    .update(updates)
+    .eq("id", assetId)
     .select("*")
     .single();
   if (error) throw new Error(error.message);
@@ -254,6 +304,19 @@ export async function failGenerationRecord(id: string, errorMessage: string): Pr
     .from("asset_generations")
     .update({ status: "failed", error_message: errorMessage })
     .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateGenerationReview(
+  generationId: string,
+  review: { status: "passed" | "warning" | "failed"; notes: string },
+): Promise<void> {
+  assertSupabaseReady();
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("asset_generations")
+    .update({ review_status: review.status, review_notes: review.notes })
+    .eq("id", generationId);
   if (error) throw new Error(error.message);
 }
 

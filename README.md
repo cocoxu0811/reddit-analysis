@@ -42,3 +42,12 @@ The **Knowledge base** page stores brand guides, product copy, and historical po
 4. Content generation (`/api/content/ideas`, `/api/content/generate`, Agent tools) automatically injects RAG context when configured.
 
 Optional: pass `persistToKnowledge: true` in content API bodies to save generated ideas back into the knowledge base as `history_copy`.
+
+## Product consistency (Identity Card + VLM review)
+
+To keep AI-generated images consistent across platforms:
+
+1. Run SQL from [`supabase/migrations/003_product_identity_and_review.sql`](supabase/migrations/003_product_identity_and_review.sql) in the Supabase SQL Editor.
+2. Fill in the **Product Identity Card** when uploading assets (colors, material, shape, brand elements, immutable features).
+3. The 4-layer prompt system automatically injects identity constraints into every generation.
+4. After each generation, **Gemini Vision** automatically reviews the output for shape/color/brand fidelity (requires `GEMINI_API_KEY`).
