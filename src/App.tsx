@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_INSTAGRAM_HANDLES } from '../competitive/config';
 import { CompetitiveIgCalendar } from './CompetitiveIgCalendar';
 import { AssetLibrary } from './AssetLibrary';
+import { ImageStudio } from './ImageStudio';
 import { KnowledgeLibrary } from './KnowledgeLibrary';
 import { buildInstagramSocialDashboard, weekdayLabel } from './socialDashboard';
 import {
@@ -303,8 +304,10 @@ const translations = {
     taskHeroCompetitiveSub: "Sync Instagram pilots and compare posting patterns.",
     taskHeroSocial: "Social insights",
     taskHeroSocialSub: "Dashboards built from your competitive Instagram cache.",
-    taskHeroAssets: "Product assets",
-    taskHeroAssetsSub: "Store product photos and generate platform-ready images with AI.",
+    taskHeroAssets: "Asset manager",
+    taskHeroAssetsSub: "Upload, browse, and manage product photos with identity cards.",
+    taskHeroImageStudio: "AI Image Studio",
+    taskHeroImageStudioSub: "Chat with your AI designer to generate platform-ready product images.",
     taskHeroKnowledge: "Knowledge base",
     taskHeroKnowledgeSub: "RAG layer for brand guides, product copy, and high-performing examples.",
     readyToCreate: "Ready to create?",
@@ -457,7 +460,8 @@ const translations = {
     navGroupReddit: "Reddit",
     navGroupInstagram: "Instagram",
     navGroupAssets: "Assets",
-    navAssets: "Asset library",
+    navAssets: "Asset manager",
+    navImageStudio: "AI Image Studio",
     navKnowledge: "Knowledge base",
     navSocial: "Social analytics",
     socialDashTitle: "Social analytics",
@@ -501,8 +505,10 @@ const translations = {
     taskHeroCompetitiveSub: "同步 Instagram 竞品账号并对比发帖节奏。",
     taskHeroSocial: "社交洞察",
     taskHeroSocialSub: "基于竞品缓存构建 Instagram 数据看板。",
-    taskHeroAssets: "产品素材库",
-    taskHeroAssetsSub: "存放企业产品图，按平台风格 AI 生成适配图。",
+    taskHeroAssets: "素材管理",
+    taskHeroAssetsSub: "上传、浏览和管理产品图片与身份卡。",
+    taskHeroImageStudio: "AI 生图工作台",
+    taskHeroImageStudioSub: "与 AI 设计师对话，生成各平台适配的产品图片。",
     taskHeroKnowledge: "知识库 RAG",
     taskHeroKnowledgeSub: "品牌指南、产品文案与高效范例的向量检索层。",
     readyToCreate: "准备开始？",
@@ -654,7 +660,8 @@ const translations = {
     navGroupReddit: "Reddit",
     navGroupInstagram: "Instagram",
     navGroupAssets: "素材",
-    navAssets: "素材库",
+    navAssets: "素材管理",
+    navImageStudio: "AI 生图",
     navKnowledge: "知识库",
     navSocial: "社媒分析",
     socialDashTitle: "社媒分析",
@@ -690,7 +697,7 @@ export default function App() {
   const HISTORY_STORAGE_KEY = 'redditAnalysisHistory';
   const [language, setLanguage] = useState<'en' | 'zh'>('zh');
   const [activePage, setActivePage] = useState<
-    'analyze' | 'history' | 'content' | 'monitor' | 'competitive' | 'social' | 'assets' | 'knowledge'
+    'analyze' | 'history' | 'content' | 'monitor' | 'competitive' | 'social' | 'assets' | 'image-studio' | 'knowledge'
   >('analyze');
   const [inputText, setInputText] = useState('');
   const [redditUrl, setRedditUrl] = useState('');
@@ -794,6 +801,7 @@ export default function App() {
 
   const assetNavItems = [
     { id: 'assets' as const, icon: Images, label: t.navAssets },
+    { id: 'image-studio' as const, icon: Sparkles, label: t.navImageStudio },
     { id: 'knowledge' as const, icon: BookOpen, label: t.navKnowledge },
   ];
 
@@ -805,6 +813,7 @@ export default function App() {
     competitive: { title: t.taskHeroCompetitive, subtitle: t.taskHeroCompetitiveSub },
     social: { title: t.taskHeroSocial, subtitle: t.taskHeroSocialSub },
     assets: { title: t.taskHeroAssets, subtitle: t.taskHeroAssetsSub },
+    'image-studio': { title: t.taskHeroImageStudio, subtitle: t.taskHeroImageStudioSub },
     knowledge: { title: t.taskHeroKnowledge, subtitle: t.taskHeroKnowledgeSub },
   }[activePage];
 
@@ -2914,6 +2923,8 @@ export default function App() {
           </section>
         ) : activePage === 'assets' ? (
           <AssetLibrary language={language} />
+        ) : activePage === 'image-studio' ? (
+          <ImageStudio language={language} />
         ) : activePage === 'knowledge' ? (
           <KnowledgeLibrary language={language} />
         ) : null}

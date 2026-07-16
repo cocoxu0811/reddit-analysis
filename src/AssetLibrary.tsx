@@ -7,7 +7,6 @@ import {
   ImageIcon,
   ImagePlus,
   Loader2,
-  Sparkles,
   Star,
   Trash2,
   Upload,
@@ -102,11 +101,7 @@ const copy = {
     libraryTitle: 'Asset library',
     libraryEmpty: 'No assets yet. Upload a product photo to get started.',
     generations: 'generations',
-    selectAsset: 'Select an asset to generate platform images',
-    extraPrompt: 'Extra instructions (optional)',
-    extraPromptPlaceholder: 'e.g. keep logo visible, add festive red accents',
-    generateBtn: 'Generate',
-    generating: 'Generating…',
+    selectAsset: 'Select an asset to view details',
     deleteAsset: 'Delete asset',
     editIdentity: 'Edit identity card',
     saveIdentity: 'Save',
@@ -120,8 +115,6 @@ const copy = {
     reviewFailed: 'QA: Failed',
     toastUploadOk: 'Asset uploaded',
     toastUploadFail: 'Upload failed',
-    toastGenOk: 'Image generated',
-    toastGenFail: 'Generation failed',
     toastDeleteOk: 'Asset deleted',
     toastDeleteFail: 'Delete failed',
     toastCopyOk: 'Link copied',
@@ -141,11 +134,10 @@ const copy = {
     approve: 'Approve',
     approved: 'Approved',
     unapprove: 'Unapprove',
-    seedLabel: 'Seed',
-    seedPlaceholder: 'optional, for reproducibility',
-    reuseSeed: 'Reuse seed',
+    generatedTitle: 'Generated images',
+    generatedEmpty: 'No generated images yet. Use AI Image Studio to generate.',
     configHint:
-      'Requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY on the server.',
+      'Requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY on the server.',
   },
   zh: {
     uploadTitle: '上传产品图片',
@@ -172,11 +164,7 @@ const copy = {
     libraryTitle: '素材库',
     libraryEmpty: '暂无素材，请先上传产品图片。',
     generations: '次生成',
-    selectAsset: '选择素材后可按平台风格生成图片',
-    extraPrompt: '补充说明（可选）',
-    extraPromptPlaceholder: '例如：保留 logo、加入节日红色元素',
-    generateBtn: '生成',
-    generating: '生成中…',
+    selectAsset: '选择素材查看详情',
     deleteAsset: '删除素材',
     editIdentity: '编辑身份卡',
     saveIdentity: '保存',
@@ -190,8 +178,6 @@ const copy = {
     reviewFailed: '质检：不通过',
     toastUploadOk: '素材已上传',
     toastUploadFail: '上传失败',
-    toastGenOk: '图片已生成',
-    toastGenFail: '生成失败',
     toastDeleteOk: '素材已删除',
     toastDeleteFail: '删除失败',
     toastCopyOk: '链接已复制',
@@ -211,16 +197,11 @@ const copy = {
     approve: '采纳',
     approved: '已采纳',
     unapprove: '取消采纳',
-    seedLabel: '种子值',
-    seedPlaceholder: '可选，用于可复现生成',
-    reuseSeed: '复用种子',
-    configHint: '服务端需配置 SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY、OPENAI_API_KEY。',
+    generatedTitle: '已生成图片',
+    generatedEmpty: '暂无生成图片，请前往 AI 生图工作台生成。',
+    configHint: '服务端需配置 SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY。',
   },
 } as const;
-
-function platformLabel(style: PlatformStyle, lang: 'en' | 'zh'): string {
-  return lang === 'zh' ? style.nameZh : style.nameEn;
-}
 
 type Props = {
   language: 'en' | 'zh';
@@ -235,25 +216,19 @@ export function AssetLibrary({ language }: Props) {
   const [generations, setGenerations] = useState<AssetGeneration[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [generatingPlatform, setGeneratingPlatform] = useState<PlatformId | null>(null);
-  const [activePlatform, setActivePlatform] = useState<PlatformId>('tmall');
   const [uploadName, setUploadName] = useState('');
   const [uploadDesc, setUploadDesc] = useState('');
   const [uploadTags, setUploadTags] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [extraPrompt, setExtraPrompt] = useState('');
-  // Identity card fields (upload form)
   const [uploadColors, setUploadColors] = useState('');
   const [uploadMaterial, setUploadMaterial] = useState('');
   const [uploadShape, setUploadShape] = useState('');
   const [uploadBrand, setUploadBrand] = useState('');
   const [uploadImmutable, setUploadImmutable] = useState('');
   const [referenceImages, setReferenceImages] = useState<AssetReferenceImage[]>([]);
-  const [seedInput, setSeedInput] = useState('');
   const [removingBg, setRemovingBg] = useState(false);
   const refFileRef = useRef<HTMLInputElement>(null);
   const [refLabel, setRefLabel] = useState('');
-  // Identity card edit (detail panel)
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [editColors, setEditColors] = useState('');
@@ -269,7 +244,6 @@ export function AssetLibrary({ language }: Props) {
     const data = await res.json();
     if (data.success && Array.isArray(data.styles)) {
       setStyles(data.styles);
-      if (data.styles[0]?.id) setActivePlatform(data.styles[0].id);
     }
   }, []);
 
@@ -363,32 +337,6 @@ export function AssetLibrary({ language }: Props) {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!selectedAsset) return;
-    setGeneratingPlatform(activePlatform);
-    try {
-      const seedNum = seedInput.trim() ? parseInt(seedInput.trim(), 10) : undefined;
-      const res = await fetch(`/api/assets/${selectedAsset.id}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: activePlatform,
-          extraPrompt: extraPrompt.trim() || undefined,
-          seed: Number.isFinite(seedNum) ? seedNum : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'generate failed');
-      toast.success(t.toastGenOk);
-      await loadAssetDetail(selectedAsset.id);
-      await loadAssets();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t.toastGenFail);
-    } finally {
-      setGeneratingPlatform(null);
-    }
-  };
-
   const handleDelete = async () => {
     if (!selectedAsset) return;
     if (!window.confirm(language === 'zh' ? '确定删除该素材？' : 'Delete this asset?')) return;
@@ -412,11 +360,6 @@ export function AssetLibrary({ language }: Props) {
       toast.error('Copy failed');
     }
   };
-
-  const groupedGenerations = styles.map((style) => ({
-    style,
-    items: generations.filter((g) => g.platformId === style.id),
-  }));
 
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-10 space-y-6">
@@ -751,57 +694,7 @@ export function AssetLibrary({ language }: Props) {
                   )}
                 </div>
 
-                <div className="ym-platform-tabs" role="tablist">
-                  {styles.map((style) => (
-                    <button
-                      key={style.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={activePlatform === style.id}
-                      className={`ym-platform-tab ${activePlatform === style.id ? 'ym-platform-tab-active' : ''}`}
-                      onClick={() => setActivePlatform(style.id)}
-                    >
-                      {platformLabel(style, language)}
-                      <span className="ym-platform-tab-sub">{style.aspectRatio}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.extraPrompt}</label>
-                  <input
-                    className="ym-input"
-                    value={extraPrompt}
-                    onChange={(e) => setExtraPrompt(e.target.value)}
-                    placeholder={t.extraPromptPlaceholder}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.seedLabel}</label>
-                  <input
-                    className="ym-input"
-                    type="number"
-                    value={seedInput}
-                    onChange={(e) => setSeedInput(e.target.value)}
-                    placeholder={t.seedPlaceholder}
-                  />
-                </div>
-
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="ym-btn-primary px-5 py-2.5 text-sm"
-                    disabled={generatingPlatform !== null}
-                    onClick={() => void handleGenerate()}
-                  >
-                    {generatingPlatform ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )}
-                    {generatingPlatform ? t.generating : t.generateBtn}
-                  </button>
                   <button
                     type="button"
                     className="ym-btn-ghost px-4 py-2.5 text-sm"
@@ -837,89 +730,77 @@ export function AssetLibrary({ language }: Props) {
                 )}
               </div>
 
-              <div className="space-y-4">
-                {groupedGenerations.map(({ style, items }) =>
-                  items.length > 0 ? (
-                    <div key={style.id} className="ym-card p-5">
-                      <h4 className="text-sm font-semibold text-[var(--ym-foreground)] mb-3">
-                        {platformLabel(style, language)}
-                      </h4>
-                      <div className="space-y-3">
-                        {items.map((gen) => (
-                          <div key={gen.id} className="ym-gen-row">
-                            {gen.status === 'completed' && gen.publicUrl ? (
-                              <img src={gen.publicUrl} alt="" className="ym-gen-thumb" />
-                            ) : (
-                              <div className="ym-gen-thumb ym-gen-thumb-placeholder">
-                                {gen.status === 'failed' ? t.statusFailed : t.statusProcessing}
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0 space-y-2">
-                              <p className="text-xs text-[var(--ym-caption)] line-clamp-2">{gen.promptUsed || '—'}</p>
-                              {gen.reviewStatus && (
-                                <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                                  gen.reviewStatus === 'passed' ? 'bg-green-100 text-green-700' :
-                                  gen.reviewStatus === 'warning' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-red-100 text-red-700'
-                                }`} title={gen.reviewNotes || ''}>
-                                  {gen.reviewStatus === 'passed' ? t.reviewPassed :
-                                   gen.reviewStatus === 'warning' ? t.reviewWarning :
-                                   t.reviewFailed}
-                                </span>
-                              )}
-                              {gen.reviewNotes && gen.reviewStatus !== 'passed' && (
-                                <p className="text-[10px] text-[var(--ym-caption)] italic">{gen.reviewNotes}</p>
-                              )}
-                              {gen.errorMessage ? (
-                                <p className="text-xs text-[var(--ym-destructive)]">{gen.errorMessage}</p>
-                              ) : null}
-                              {gen.seed != null && (
-                                <span className="text-[10px] text-[var(--ym-caption)]">
-                                  {t.seedLabel}: {gen.seed}
-                                  <button
-                                    type="button"
-                                    className="ml-1 underline text-[var(--ym-primary)]"
-                                    onClick={() => setSeedInput(String(gen.seed))}
-                                  >{t.reuseSeed}</button>
-                                </span>
-                              )}
-                              <div className="flex flex-wrap gap-2">
-                                {gen.publicUrl ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className={`ym-btn-ghost text-xs py-1 px-2 ${gen.approved ? 'text-green-600' : ''}`}
-                                      onClick={async () => {
-                                        try {
-                                          await fetch(`/api/generations/${gen.id}/approve`, {
-                                            method: 'PATCH',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ approved: !gen.approved }),
-                                          });
-                                          if (selectedAsset) await loadAssetDetail(selectedAsset.id);
-                                        } catch { /* ignore */ }
-                                      }}
-                                    >
-                                      <Star className={`w-3 h-3 ${gen.approved ? 'fill-current' : ''}`} />
-                                      {gen.approved ? t.approved : t.approve}
-                                    </button>
-                                    <button type="button" className="ym-btn-ghost text-xs py-1 px-2" onClick={() => void copyUrl(gen.publicUrl!)}>
-                                      <Copy className="w-3 h-3" />
-                                      {t.copyLink}
-                                    </button>
-                                    <a href={gen.publicUrl} download target="_blank" rel="noreferrer" className="ym-btn-ghost text-xs py-1 px-2 inline-flex items-center gap-1">
-                                      <Download className="w-3 h-3" />
-                                      {t.download}
-                                    </a>
-                                  </>
-                                ) : null}
-                              </div>
-                            </div>
+              {/* Generated images (readonly) */}
+              <div className="ym-card p-5">
+                <h4 className="text-sm font-semibold text-[var(--ym-foreground)] mb-3">{t.generatedTitle}</h4>
+                {generations.length === 0 ? (
+                  <p className="text-sm text-[var(--ym-muted-foreground)]">{t.generatedEmpty}</p>
+                ) : (
+                  <div className="space-y-3">
+                    {generations.map((gen) => (
+                      <div key={gen.id} className="ym-gen-row">
+                        {gen.status === 'completed' && gen.publicUrl ? (
+                          <img src={gen.publicUrl} alt="" className="ym-gen-thumb" />
+                        ) : (
+                          <div className="ym-gen-thumb ym-gen-thumb-placeholder">
+                            {gen.status === 'failed' ? t.statusFailed : t.statusProcessing}
                           </div>
-                        ))}
+                        )}
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--ym-muted)] text-[var(--ym-foreground)]">
+                              {gen.platformId}
+                            </span>
+                            {gen.reviewStatus && (
+                              <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                gen.reviewStatus === 'passed' ? 'bg-green-100 text-green-700' :
+                                gen.reviewStatus === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                              }`} title={gen.reviewNotes || ''}>
+                                {gen.reviewStatus === 'passed' ? t.reviewPassed :
+                                 gen.reviewStatus === 'warning' ? t.reviewWarning :
+                                 t.reviewFailed}
+                              </span>
+                            )}
+                          </div>
+                          {gen.errorMessage && (
+                            <p className="text-xs text-[var(--ym-destructive)]">{gen.errorMessage}</p>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            {gen.publicUrl && (
+                              <>
+                                <button
+                                  type="button"
+                                  className={`ym-btn-ghost text-xs py-1 px-2 ${gen.approved ? 'text-green-600' : ''}`}
+                                  onClick={async () => {
+                                    try {
+                                      await fetch(`/api/generations/${gen.id}/approve`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ approved: !gen.approved }),
+                                      });
+                                      if (selectedAsset) await loadAssetDetail(selectedAsset.id);
+                                    } catch { /* ignore */ }
+                                  }}
+                                >
+                                  <Star className={`w-3 h-3 ${gen.approved ? 'fill-current' : ''}`} />
+                                  {gen.approved ? t.approved : t.approve}
+                                </button>
+                                <button type="button" className="ym-btn-ghost text-xs py-1 px-2" onClick={() => void copyUrl(gen.publicUrl!)}>
+                                  <Copy className="w-3 h-3" />
+                                  {t.copyLink}
+                                </button>
+                                <a href={gen.publicUrl} download target="_blank" rel="noreferrer" className="ym-btn-ghost text-xs py-1 px-2 inline-flex items-center gap-1">
+                                  <Download className="w-3 h-3" />
+                                  {t.download}
+                                </a>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ) : null
+                    ))}
+                  </div>
                 )}
               </div>
             </>
