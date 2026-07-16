@@ -31,6 +31,8 @@ export type ProductAsset = {
   mimeType: string;
   tags: string[];
   identity: ProductIdentity;
+  cleanStoragePath: string | null;
+  cleanPublicUrl: string | null;
   createdAt: string;
   updatedAt: string;
   generationCount?: number;
@@ -46,8 +48,21 @@ export type AssetGeneration = {
   status: "pending" | "processing" | "completed" | "failed";
   errorMessage: string | null;
   model: string;
+  seed: number | null;
+  approved: boolean;
   reviewStatus: "passed" | "warning" | "failed" | null;
   reviewNotes: string | null;
+  createdAt: string;
+};
+
+export type AssetReferenceImage = {
+  id: string;
+  assetId: string;
+  label: string;
+  storagePath: string;
+  publicUrl: string;
+  mimeType: string;
+  sortOrder: number;
   createdAt: string;
 };
 
@@ -67,6 +82,8 @@ function mapAssetRow(row: Record<string, unknown>): ProductAsset {
       brandElements: String(row.brand_elements ?? ""),
       immutableFeatures: String(row.immutable_features ?? ""),
     },
+    cleanStoragePath: row.clean_storage_path != null ? String(row.clean_storage_path) : null,
+    cleanPublicUrl: row.clean_public_url != null ? String(row.clean_public_url) : null,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? ""),
     generationCount:
@@ -85,6 +102,8 @@ function mapGenerationRow(row: Record<string, unknown>): AssetGeneration {
     status: String(row.status ?? "pending") as AssetGeneration["status"],
     errorMessage: row.error_message != null ? String(row.error_message) : null,
     model: String(row.model ?? "gpt-image-2"),
+    seed: row.seed != null ? Number(row.seed) : null,
+    approved: row.approved === true,
     reviewStatus: row.review_status != null ? String(row.review_status) as AssetGeneration["reviewStatus"] : null,
     reviewNotes: row.review_notes != null ? String(row.review_notes) : null,
     createdAt: String(row.created_at ?? ""),
@@ -320,6 +339,130 @@ export async function updateGenerationReview(
   if (error) throw new Error(error.message);
 }
 
+export async function setGenerationApproval(generationId: string, approved: boolean): Promise<void> {
+  assertSupabaseReady();
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("asset_generations")
+    .update({ approved })
+    .eq("id", generationId);
+  if (error) throw new Error(error.message);
+}
+
+export async function getApprovedGenerations(assetId: string): Promise<AssetGeneration[]> {
+  assertSupabaseReady();
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("asset_generations")
+    .select("*")
+    .eq("asset_id", assetId)
+    .eq("approved", true)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapGenerationRow(row as Record<string, unknown>));
+}
+
+// ── Reference images ──
+
+function mapRefImageRow(row: Record<string, unknown>): AssetReferenceImage {
+  return {
+    id: String(row.id),
+    assetId: String(row.asset_id),
+    label: String(row.label ?? ""),
+    storagePath: String(row.storage_path ?? ""),
+    publicUrl: String(row.public_url ?? ""),
+    mimeType: String(row.mime_type ?? "image/png"),
+    sortOrder: Number(row.sort_order ?? 0),
+    createdAt: String(row.created_at ?? ""),
+  };
+}
+
+export async function listReferenceImages(assetId: string): Promise<AssetReferenceImage[]> {
+  assertSupabaseReady();
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("asset_reference_images")
+    .select("*")
+    .eq("asset_id", assetId)
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapRefImageRow(row as Record<string, unknown>));
+}
+
+export async function addReferenceImage(input: {
+  assetId: string;
+  label: string;
+  buffer: Buffer;
+  mimeType: string;
+}): Promise<AssetReferenceImage> {
+  assertSupabaseReady();
+  const storagePath = buildAssetStoragePath(input.mimeType);
+  const { publicUrl } = await uploadToStorage(storagePath, input.buffer, input.mimeType);
+
+  const existing = await listReferenceImages(input.assetId);
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("asset_reference_images")
+    .insert({
+      asset_id: input.assetId,
+      label: input.label.trim(),
+      storage_path: storagePath,
+      public_url: publicUrl,
+      mime_type: input.mimeType,
+      sort_order: existing.length,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapRefImageRow(data as Record<string, unknown>);
+}
+
+export async function deleteReferenceImage(refId: string): Promise<void> {
+  assertSupabaseReady();
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from("asset_reference_images")
+    .select("storage_path")
+    .eq("id", refId)
+    .maybeSingle();
+  if (data?.storage_path) {
+    try { await deleteStorageObject(String(data.storage_path)); } catch { /* ignore */ }
+  }
+  const { error } = await supabase.from("asset_reference_images").delete().eq("id", refId);
+  if (error) throw new Error(error.message);
+}
+
+// ── Clean background ──
+
+export async function updateAssetClean(
+  assetId: string,
+  input: { buffer: Buffer; mimeType: string },
+): Promise<ProductAsset> {
+  assertSupabaseReady();
+  const storagePath = buildAssetStoragePath(input.mimeType);
+  const { publicUrl } = await uploadToStorage(storagePath, input.buffer, input.mimeType);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("product_assets")
+    .update({
+      clean_storage_path: storagePath,
+      clean_public_url: publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", assetId)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapAssetRow(data as Record<string, unknown>);
+}
+
 export async function downloadAssetBuffer(asset: ProductAsset): Promise<Buffer> {
   return downloadFromStorage(asset.storagePath);
+}
+
+export async function downloadCleanBuffer(asset: ProductAsset): Promise<Buffer | null> {
+  if (!asset.cleanStoragePath) return null;
+  return downloadFromStorage(asset.cleanStoragePath);
 }

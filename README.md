@@ -51,3 +51,9 @@ To keep AI-generated images consistent across platforms:
 2. Fill in the **Product Identity Card** when uploading assets (colors, material, shape, brand elements, immutable features).
 3. The 4-layer prompt system automatically injects identity constraints into every generation.
 4. After each generation, **Gemini Vision** automatically reviews the output for shape/color/brand fidelity (requires `GEMINI_API_KEY`).
+5. Run SQL from [`supabase/migrations/004_references_seed_approval.sql`](supabase/migrations/004_references_seed_approval.sql) for multi-angle reference images, seed tracking, generation approval, and background removal support.
+6. **Multi-angle references**: upload side/back/detail views of your product for better consistency.
+7. **Approve** good generations — approved images anchor the style for subsequent platforms.
+8. **Seed control**: lock a seed value for reproducible results; reuse seeds from previous generations.
+9. **Background removal**: one-click product cutout using Gemini (requires `GEMINI_API_KEY`). Clean versions are auto-preferred during generation.
+10. **Brand DNA**: if your knowledge base contains `brand_guide` or `product_desc` documents, brand constraints are automatically injected into generation prompts.

@@ -7,17 +7,26 @@ import {
   completeGenerationRecord,
   deleteAsset,
   downloadAssetBuffer,
+  downloadCleanBuffer,
   failGenerationRecord,
   getAsset,
+  getApprovedGenerations,
   listAssets,
   listGenerations,
   listPlatformStyles,
+  listReferenceImages,
+  addReferenceImage,
+  deleteReferenceImage,
+  setGenerationApproval,
+  updateAssetClean,
   updateAssetIdentity,
   updateGenerationReview,
 } from "./assetLibrary.js";
 import { generatePlatformImage } from "./imageGen.js";
 import { isPlatformId, type ProductIdentityForPrompt } from "./platformStyles.js";
 import { isReviewAvailable, reviewGeneratedImage } from "./imageReview.js";
+import { fetchBrandDnaForImageGen } from "./brandDna.js";
+import { isRemoveBgAvailable, removeBackground } from "./removeBackground.js";
 
 const ALLOWED_MIME = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -134,8 +143,11 @@ export function registerAssetRoutes(app: Express): void {
       if (!asset) {
         return res.status(404).json({ success: false, error: "Asset not found" });
       }
-      const generations = await listGenerations(asset.id);
-      res.json({ success: true, asset, generations });
+      const [generations, referenceImages] = await Promise.all([
+        listGenerations(asset.id),
+        listReferenceImages(asset.id),
+      ]);
+      res.json({ success: true, asset, generations, referenceImages });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to load asset";
       res.status(500).json({ success: false, error: message });
@@ -173,7 +185,7 @@ export function registerAssetRoutes(app: Express): void {
     let generationId: string | null = null;
     try {
       assertSupabaseReady();
-      const { platform, extraPrompt } = req.body || {};
+      const { platform, extraPrompt, seed: reqSeed } = req.body || {};
       if (!isPlatformId(platform)) {
         return res.status(400).json({ success: false, error: "Invalid or missing platform" });
       }
@@ -189,7 +201,11 @@ export function registerAssetRoutes(app: Express): void {
         return res.status(400).json({ success: false, error: "Unknown platform style" });
       }
 
-      const sourceBuffer = await downloadAssetBuffer(asset);
+      const [sourceBuffer, cleanBuffer] = await Promise.all([
+        downloadAssetBuffer(asset),
+        downloadCleanBuffer(asset),
+      ]);
+
       const pending = await createGenerationRecord({
         assetId: asset.id,
         platformId: platform,
@@ -206,14 +222,46 @@ export function registerAssetRoutes(app: Express): void {
         immutableFeatures: asset.identity.immutableFeatures,
       };
 
+      // Build approved-generation context for cross-platform consistency
+      let approvedContext = "";
+      try {
+        const approved = await getApprovedGenerations(asset.id);
+        if (approved.length > 0) {
+          approvedContext = approved
+            .filter((g) => g.platformId !== platform)
+            .slice(0, 3)
+            .map((g) => `${g.platformId}: ${g.promptUsed.slice(0, 300)}`)
+            .join("\n");
+        }
+      } catch { /* non-blocking */ }
+
+      // Inject brand DNA from RAG knowledge base
+      let brandDnaBlock = "";
+      try {
+        brandDnaBlock = await fetchBrandDnaForImageGen({
+          productName: asset.name,
+          tags: asset.tags,
+        });
+      } catch { /* non-blocking */ }
+
+      const combinedExtra = [
+        typeof extraPrompt === "string" ? extraPrompt : "",
+        brandDnaBlock,
+      ].filter(Boolean).join("\n\n");
+
+      const seed = typeof reqSeed === "number" ? reqSeed : null;
+
       const { buffer, promptUsed, mimeType } = await generatePlatformImage({
         sourceBuffer,
+        cleanBuffer,
         mimeType: asset.mimeType,
         platformStyle,
         productName: asset.name,
         description: asset.description,
-        extraPrompt: typeof extraPrompt === "string" ? extraPrompt : undefined,
+        extraPrompt: combinedExtra || undefined,
         identity: identityForPrompt,
+        seed,
+        approvedContext,
       });
 
       const generation = await completeGenerationRecord(generationId, {
@@ -221,6 +269,14 @@ export function registerAssetRoutes(app: Express): void {
         mimeType,
         promptUsed,
       });
+
+      // Store seed if provided
+      if (seed != null) {
+        try {
+          const supabase = (await import("../db/supabase.js")).getSupabaseAdmin();
+          await supabase.from("asset_generations").update({ seed }).eq("id", generation.id);
+        } catch { /* non-blocking */ }
+      }
 
       let review = null;
       if (isReviewAvailable()) {
@@ -243,7 +299,16 @@ export function registerAssetRoutes(app: Express): void {
         }
       }
 
-      res.json({ success: true, generation: { ...generation, reviewStatus: review?.status ?? null, reviewNotes: review?.notes ?? null }, review });
+      res.json({
+        success: true,
+        generation: {
+          ...generation,
+          seed,
+          reviewStatus: review?.status ?? null,
+          reviewNotes: review?.notes ?? null,
+        },
+        review,
+      });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Generation failed";
       if (generationId) {
@@ -253,6 +318,82 @@ export function registerAssetRoutes(app: Express): void {
           /* ignore */
         }
       }
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  // ── Reference images ──
+
+  app.post("/api/assets/:id/references", upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      assertSupabaseReady();
+      const file = req.file;
+      if (!file) return res.status(400).json({ success: false, error: "Missing file" });
+
+      const asset = await getAsset(req.params.id);
+      if (!asset) return res.status(404).json({ success: false, error: "Asset not found" });
+
+      const label = String(req.body?.label ?? "").trim();
+      const ref = await addReferenceImage({
+        assetId: asset.id,
+        label,
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+      });
+      res.json({ success: true, referenceImage: ref });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to add reference image";
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.delete("/api/assets/:id/references/:refId", async (req: Request, res: Response) => {
+    try {
+      assertSupabaseReady();
+      await deleteReferenceImage(req.params.refId);
+      res.json({ success: true });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to delete reference image";
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  // ── Generation approval ──
+
+  app.patch("/api/generations/:id/approve", async (req: Request, res: Response) => {
+    try {
+      assertSupabaseReady();
+      const approved = req.body?.approved !== false;
+      await setGenerationApproval(req.params.id, approved);
+      res.json({ success: true, approved });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update approval";
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  // ── Background removal ──
+
+  app.post("/api/assets/:id/remove-bg", async (req: Request, res: Response) => {
+    try {
+      assertSupabaseReady();
+      if (!isRemoveBgAvailable()) {
+        return res.status(400).json({ success: false, error: "Background removal requires GEMINI_API_KEY" });
+      }
+
+      const asset = await getAsset(req.params.id);
+      if (!asset) return res.status(404).json({ success: false, error: "Asset not found" });
+
+      const sourceBuffer = await downloadAssetBuffer(asset);
+      const { buffer, mimeType } = await removeBackground({
+        buffer: sourceBuffer,
+        mimeType: asset.mimeType,
+      });
+
+      const updated = await updateAssetClean(asset.id, { buffer, mimeType });
+      res.json({ success: true, asset: updated });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Background removal failed";
       res.status(500).json({ success: false, error: message });
     }
   });

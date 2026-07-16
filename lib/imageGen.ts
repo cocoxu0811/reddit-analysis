@@ -21,12 +21,15 @@ function mimeToExt(mimeType: string): string {
 
 export async function generatePlatformImage(input: {
   sourceBuffer: Buffer;
+  cleanBuffer?: Buffer | null;
   mimeType: string;
   platformStyle: PlatformStyle;
   productName?: string;
   description?: string;
   extraPrompt?: string;
   identity?: ProductIdentityForPrompt;
+  seed?: number | null;
+  approvedContext?: string;
 }): Promise<{ buffer: Buffer; promptUsed: string; mimeType: string }> {
   const client = new OpenAI({ apiKey: requireOpenAiKey() });
 
@@ -35,17 +38,23 @@ export async function generatePlatformImage(input: {
     description: input.description || input.identity?.description,
   };
 
+  let extraParts = input.extraPrompt ?? "";
+  if (input.approvedContext?.trim()) {
+    extraParts = `${extraParts}\n\n[APPROVED REFERENCE]\nPreviously approved generations for this product had these characteristics — maintain visual consistency:\n${input.approvedContext.trim()}`.trim();
+  }
+
   const promptUsed = buildPlatformPrompt(input.platformStyle, {
     productName: input.productName,
-    extraPrompt: input.extraPrompt,
+    extraPrompt: extraParts || undefined,
     identity: identityForPrompt,
   });
 
   const model = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2";
   const size = parseOpenAiSize(input.platformStyle.size);
 
+  const sourceImg = input.cleanBuffer ?? input.sourceBuffer;
   const imageFile = await toFile(
-    input.sourceBuffer,
+    sourceImg,
     `source.${mimeToExt(input.mimeType)}`,
     { type: input.mimeType }
   );
@@ -55,6 +64,7 @@ export async function generatePlatformImage(input: {
     image: imageFile,
     prompt: promptUsed,
     size,
+    ...(input.seed != null ? { seed: input.seed } : {}),
   });
 
   const first = response.data?.[0];

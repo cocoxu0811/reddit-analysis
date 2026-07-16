@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  CheckCircle2,
   Copy,
   Download,
+  Eraser,
   ImageIcon,
+  ImagePlus,
   Loader2,
   Sparkles,
+  Star,
   Trash2,
   Upload,
   X,
@@ -41,6 +45,7 @@ type ProductAsset = {
   mimeType: string;
   tags: string[];
   identity: ProductIdentity;
+  cleanPublicUrl: string | null;
   createdAt: string;
   updatedAt: string;
   generationCount?: number;
@@ -56,8 +61,18 @@ type AssetGeneration = {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   errorMessage: string | null;
   model: string;
+  seed: number | null;
+  approved: boolean;
   reviewStatus: 'passed' | 'warning' | 'failed' | null;
   reviewNotes: string | null;
+  createdAt: string;
+};
+
+type AssetReferenceImage = {
+  id: string;
+  assetId: string;
+  label: string;
+  publicUrl: string;
   createdAt: string;
 };
 
@@ -113,6 +128,22 @@ const copy = {
     toastLoadFail: 'Failed to load assets',
     toastIdentityOk: 'Identity card saved',
     toastIdentityFail: 'Failed to save identity',
+    refImagesTitle: 'Reference images',
+    refImagesHint: 'Add more angles (side, back, detail) for better consistency.',
+    refLabel: 'Label',
+    refLabelPlaceholder: 'e.g. side view',
+    addRef: 'Add angle',
+    removeBg: 'Remove background',
+    removingBg: 'Removing…',
+    removeBgDone: 'Background removed',
+    removeBgFail: 'Background removal failed',
+    cleanVersion: 'Clean cutout',
+    approve: 'Approve',
+    approved: 'Approved',
+    unapprove: 'Unapprove',
+    seedLabel: 'Seed',
+    seedPlaceholder: 'optional, for reproducibility',
+    reuseSeed: 'Reuse seed',
     configHint:
       'Requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY on the server.',
   },
@@ -167,6 +198,22 @@ const copy = {
     toastLoadFail: '加载素材失败',
     toastIdentityOk: '身份卡已保存',
     toastIdentityFail: '保存失败',
+    refImagesTitle: '参考图',
+    refImagesHint: '添加不同角度的图片（侧面、背面、细节）以提升一致性。',
+    refLabel: '标签',
+    refLabelPlaceholder: '例如：侧面',
+    addRef: '添加角度',
+    removeBg: '去除背景',
+    removingBg: '处理中…',
+    removeBgDone: '背景已去除',
+    removeBgFail: '去除背景失败',
+    cleanVersion: '干净抠图',
+    approve: '采纳',
+    approved: '已采纳',
+    unapprove: '取消采纳',
+    seedLabel: '种子值',
+    seedPlaceholder: '可选，用于可复现生成',
+    reuseSeed: '复用种子',
     configHint: '服务端需配置 SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY、OPENAI_API_KEY。',
   },
 } as const;
@@ -201,6 +248,11 @@ export function AssetLibrary({ language }: Props) {
   const [uploadShape, setUploadShape] = useState('');
   const [uploadBrand, setUploadBrand] = useState('');
   const [uploadImmutable, setUploadImmutable] = useState('');
+  const [referenceImages, setReferenceImages] = useState<AssetReferenceImage[]>([]);
+  const [seedInput, setSeedInput] = useState('');
+  const [removingBg, setRemovingBg] = useState(false);
+  const refFileRef = useRef<HTMLInputElement>(null);
+  const [refLabel, setRefLabel] = useState('');
   // Identity card edit (detail panel)
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [savingIdentity, setSavingIdentity] = useState(false);
@@ -241,6 +293,7 @@ export function AssetLibrary({ language }: Props) {
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'load failed');
       setGenerations(data.generations ?? []);
+      setReferenceImages(data.referenceImages ?? []);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.toastLoadFail);
     }
@@ -314,10 +367,15 @@ export function AssetLibrary({ language }: Props) {
     if (!selectedAsset) return;
     setGeneratingPlatform(activePlatform);
     try {
+      const seedNum = seedInput.trim() ? parseInt(seedInput.trim(), 10) : undefined;
       const res = await fetch(`/api/assets/${selectedAsset.id}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: activePlatform, extraPrompt: extraPrompt.trim() || undefined }),
+        body: JSON.stringify({
+          platform: activePlatform,
+          extraPrompt: extraPrompt.trim() || undefined,
+          seed: Number.isFinite(seedNum) ? seedNum : undefined,
+        }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'generate failed');
@@ -533,6 +591,66 @@ export function AssetLibrary({ language }: Props) {
                   className="w-full max-h-72 object-contain rounded-[12px] bg-[var(--ym-muted)]"
                 />
 
+                {/* Reference images (multi-angle) */}
+                <div className="rounded-[12px] border border-[var(--ym-input-border)] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold text-[var(--ym-foreground)]">{t.refImagesTitle}</h4>
+                    <button
+                      type="button"
+                      className="ym-btn-ghost text-xs py-1 px-2"
+                      onClick={() => refFileRef.current?.click()}
+                    >
+                      <ImagePlus className="w-3 h-3" />
+                      {t.addRef}
+                    </button>
+                    <input
+                      ref={refFileRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !selectedAsset) return;
+                        try {
+                          const form = new FormData();
+                          form.append('file', file);
+                          form.append('label', refLabel.trim() || file.name.replace(/\.[^.]+$/, ''));
+                          const res = await fetch(`/api/assets/${selectedAsset.id}/references`, { method: 'POST', body: form });
+                          const data = await res.json();
+                          if (!data.success) throw new Error(data.error);
+                          setRefLabel('');
+                          await loadAssetDetail(selectedAsset.id);
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : 'Failed to add reference');
+                        }
+                        if (refFileRef.current) refFileRef.current.value = '';
+                      }}
+                    />
+                  </div>
+                  {referenceImages.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {referenceImages.map((ref) => (
+                        <div key={ref.id} className="relative group">
+                          <img src={ref.publicUrl} alt={ref.label} className="w-16 h-16 object-cover rounded-[8px] border border-[var(--ym-input-border)]" />
+                          <span className="block text-[10px] text-center text-[var(--ym-caption)] mt-0.5 truncate max-w-[64px]">{ref.label || '—'}</span>
+                          <button
+                            type="button"
+                            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--ym-destructive)] text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={async () => {
+                              try {
+                                await fetch(`/api/assets/${selectedAsset.id}/references/${ref.id}`, { method: 'DELETE' });
+                                await loadAssetDetail(selectedAsset.id);
+                              } catch { /* ignore */ }
+                            }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--ym-caption)] italic">{t.refImagesHint}</p>
+                  )}
+                </div>
+
                 {/* Identity Card (view / edit) */}
                 <div className="rounded-[12px] border border-[var(--ym-input-border)] p-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -659,19 +777,64 @@ export function AssetLibrary({ language }: Props) {
                   />
                 </div>
 
-                <button
-                  type="button"
-                  className="ym-btn-primary px-5 py-2.5 text-sm"
-                  disabled={generatingPlatform !== null}
-                  onClick={() => void handleGenerate()}
-                >
-                  {generatingPlatform ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" />
-                  )}
-                  {generatingPlatform ? t.generating : t.generateBtn}
-                </button>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-1">{t.seedLabel}</label>
+                  <input
+                    className="ym-input"
+                    type="number"
+                    value={seedInput}
+                    onChange={(e) => setSeedInput(e.target.value)}
+                    placeholder={t.seedPlaceholder}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="ym-btn-primary px-5 py-2.5 text-sm"
+                    disabled={generatingPlatform !== null}
+                    onClick={() => void handleGenerate()}
+                  >
+                    {generatingPlatform ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
+                    {generatingPlatform ? t.generating : t.generateBtn}
+                  </button>
+                  <button
+                    type="button"
+                    className="ym-btn-ghost px-4 py-2.5 text-sm"
+                    disabled={removingBg}
+                    onClick={async () => {
+                      setRemovingBg(true);
+                      try {
+                        const res = await fetch(`/api/assets/${selectedAsset.id}/remove-bg`, { method: 'POST' });
+                        const data = await res.json();
+                        if (!data.success) throw new Error(data.error || 'failed');
+                        toast.success(t.removeBgDone);
+                        await loadAssets();
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : t.removeBgFail);
+                      } finally {
+                        setRemovingBg(false);
+                      }
+                    }}
+                  >
+                    {removingBg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
+                    {removingBg ? t.removingBg : t.removeBg}
+                  </button>
+                </div>
+
+                {selectedAsset.cleanPublicUrl && (
+                  <div className="flex items-center gap-3 p-3 rounded-[12px] bg-[var(--ym-muted)]">
+                    <img src={selectedAsset.cleanPublicUrl} alt="clean" className="w-16 h-16 object-contain rounded-[8px] bg-white" />
+                    <div className="text-xs text-[var(--ym-muted-foreground)]">
+                      <CheckCircle2 className="w-3 h-3 inline mr-1 text-green-600" />
+                      {t.cleanVersion}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -710,9 +873,36 @@ export function AssetLibrary({ language }: Props) {
                               {gen.errorMessage ? (
                                 <p className="text-xs text-[var(--ym-destructive)]">{gen.errorMessage}</p>
                               ) : null}
+                              {gen.seed != null && (
+                                <span className="text-[10px] text-[var(--ym-caption)]">
+                                  {t.seedLabel}: {gen.seed}
+                                  <button
+                                    type="button"
+                                    className="ml-1 underline text-[var(--ym-primary)]"
+                                    onClick={() => setSeedInput(String(gen.seed))}
+                                  >{t.reuseSeed}</button>
+                                </span>
+                              )}
                               <div className="flex flex-wrap gap-2">
                                 {gen.publicUrl ? (
                                   <>
+                                    <button
+                                      type="button"
+                                      className={`ym-btn-ghost text-xs py-1 px-2 ${gen.approved ? 'text-green-600' : ''}`}
+                                      onClick={async () => {
+                                        try {
+                                          await fetch(`/api/generations/${gen.id}/approve`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ approved: !gen.approved }),
+                                          });
+                                          if (selectedAsset) await loadAssetDetail(selectedAsset.id);
+                                        } catch { /* ignore */ }
+                                      }}
+                                    >
+                                      <Star className={`w-3 h-3 ${gen.approved ? 'fill-current' : ''}`} />
+                                      {gen.approved ? t.approved : t.approve}
+                                    </button>
                                     <button type="button" className="ym-btn-ghost text-xs py-1 px-2" onClick={() => void copyUrl(gen.publicUrl!)}>
                                       <Copy className="w-3 h-3" />
                                       {t.copyLink}
