@@ -11,6 +11,8 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useEveAgent } from 'eve/react';
+import type { EveMessagePart, EveDynamicToolPart } from 'eve/react';
 
 type PlatformOption = {
   id: string;
@@ -20,15 +22,6 @@ type PlatformOption = {
 type SizePreset = {
   label: string;
   value: string;
-};
-
-type ChatMessage = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  images?: Array<{ url: string; platform: string; generationId: string }>;
-  toolCalls?: Array<{ toolName: string; input: unknown; output: unknown }>;
-  timestamp: number;
 };
 
 type AssetPickerItem = {
@@ -91,6 +84,8 @@ const copy = {
     loadingAssets: 'Loading…',
     sidebarToggle: 'Parameters',
     clear: 'Clear',
+    approve: 'Approve',
+    deny: 'Deny',
   },
   zh: {
     title: 'AI 生图工作台',
@@ -119,13 +114,10 @@ const copy = {
     loadingAssets: '加载中…',
     sidebarToggle: '参数设置',
     clear: '清空对话',
+    approve: '批准执行',
+    deny: '拒绝',
   },
 } as const;
-
-let msgSeq = 0;
-function nextId() {
-  return `msg-${Date.now()}-${++msgSeq}`;
-}
 
 type Props = {
   language: 'en' | 'zh';
@@ -135,8 +127,8 @@ export function ImageStudio({ language }: Props) {
   const t = copy[language];
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
-  // Sidebar params
   const [platform, setPlatform] = useState<string>('');
   const [sizePreset, setSizePreset] = useState<string>('1:1');
   const [customW, setCustomW] = useState('');
@@ -145,18 +137,38 @@ export function ImageStudio({ language }: Props) {
   const [quality, setQuality] = useState('auto');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Asset picker
   const [assets, setAssets] = useState<AssetPickerItem[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
-  // Chat
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [isSending, setIsSending] = useState(false);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) ?? null;
+
+  const eveHost = (import.meta as any).env?.VITE_EVE_HOST || 'http://localhost:2000';
+
+  const agent = useEveAgent({
+    host: eveHost,
+    prepareSend: (input) => {
+      const ctx: Record<string, string | number | boolean> = { mode: 'image-studio' };
+      if (platform) ctx.platform = platform;
+      if (platform === 'custom') {
+        const w = parseInt(customW, 10);
+        const h = parseInt(customH, 10);
+        if (w > 0 && h > 0) { ctx.width = w; ctx.height = h; }
+      } else if (sizePreset) {
+        ctx.size = sizePreset;
+      }
+      if (count > 1) ctx.count = count;
+      if (quality !== 'auto') ctx.quality = quality;
+      if (selectedAssetId) ctx.selectedAssetId = selectedAssetId;
+      return { ...input, clientContext: ctx } as typeof input;
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const isBusy = agent.status === 'submitted' || agent.status === 'streaming';
 
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
@@ -173,106 +185,136 @@ export function ImageStudio({ language }: Props) {
           }))
         );
       }
-    } catch {
-      /* non-blocking */
-    } finally {
-      setAssetsLoading(false);
-    }
+    } catch { /* non-blocking */ }
+    finally { setAssetsLoading(false); }
   }, []);
 
-  useEffect(() => {
-    void loadAssets();
-  }, [loadAssets]);
+  useEffect(() => { void loadAssets(); }, [loadAssets]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [agent.data.messages]);
 
-  const handleSend = async () => {
-    const text = inputValue.trim();
-    if (!text || isSending) return;
+  const handleSend = () => {
+    let text = inputValue.trim();
+    if (!text || isBusy) return;
 
-    const userMsg: ChatMessage = {
-      id: nextId(),
-      role: 'user',
-      content: text,
-      timestamp: Date.now(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInputValue('');
-    setIsSending(true);
-
-    try {
-      const apiMessages = [...messages, userMsg].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const sidebarParams: Record<string, unknown> = {};
-      if (platform) sidebarParams.platform = platform;
-      if (platform === 'custom') {
-        const w = parseInt(customW, 10);
-        const h = parseInt(customH, 10);
-        if (w > 0 && h > 0) {
-          sidebarParams.width = w;
-          sidebarParams.height = h;
-        }
-      } else if (sizePreset) {
-        sidebarParams.size = sizePreset;
-      }
-      if (count > 1) sidebarParams.count = count;
-      if (quality !== 'auto') sidebarParams.quality = quality;
-
-      if (selectedAssetId) {
-        const last = apiMessages[apiMessages.length - 1];
-        if (last) {
-          last.content = `[参考素材ID: ${selectedAssetId}]\n${last.content}`;
-        }
-      }
-
-      const res = await fetch('/api/image-agent/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, sidebarParams }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Chat failed');
-
-      const assistantMsg: ChatMessage = {
-        id: nextId(),
-        role: 'assistant',
-        content: data.response || '',
-        images: data.generatedImages ?? [],
-        toolCalls: data.toolCalls ?? [],
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed');
-      const errorMsg: ChatMessage = {
-        id: nextId(),
-        role: 'assistant',
-        content: e instanceof Error ? `Error: ${e.message}` : 'Something went wrong.',
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setIsSending(false);
+    if (selectedAssetId) {
+      text = `[参考素材ID: ${selectedAssetId}]\n${text}`;
     }
+
+    void agent.send({ message: text });
+    setInputValue('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      void handleSend();
+      handleSend();
     }
   };
 
   const handleExampleClick = (prompt: string) => {
     setInputValue(prompt);
     inputRef.current?.focus();
+  };
+
+  const handleClear = () => {
+    agent.reset();
+    setInputValue('');
+  };
+
+  const renderDynamicTool = (part: EveDynamicToolPart, index: number) => {
+    const { toolName, state } = part;
+
+    if (state === 'output-available') {
+      const output = part.output as any;
+      if (output?.results) {
+        const images = (output.results as any[]).filter((r: any) => r.publicUrl && r.status === 'completed');
+        if (images.length > 0) {
+          return (
+            <div key={index} className="mt-3 grid grid-cols-2 gap-2">
+              {images.map((img: any, i: number) => (
+                <div key={i} className="relative group">
+                  <img
+                    src={img.publicUrl}
+                    alt={`Generated ${output.platform ?? ''}`}
+                    className="rounded-[8px] w-full object-cover cursor-pointer"
+                    onClick={() => window.open(img.publicUrl, '_blank')}
+                  />
+                  <div className="absolute bottom-1 left-1 right-1 flex justify-between items-center">
+                    <span className="text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-[4px]">
+                      {output.platform ?? 'custom'}
+                    </span>
+                    <button
+                      type="button"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white p-1 rounded-[4px]"
+                      onClick={() => window.open(img.publicUrl, '_blank')}
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        }
+      }
+    }
+
+    if (state === 'approval-requested') {
+      const inputRequest = part.toolMetadata?.eve?.inputRequest;
+      if (inputRequest) {
+        return (
+          <div key={index} className="mt-2 p-3 rounded-[8px] border border-[var(--ym-input-border)] bg-[var(--ym-surface)]">
+            <p className="text-xs text-[var(--ym-foreground)] mb-2">{inputRequest.prompt}</p>
+            <div className="flex gap-2">
+              {(inputRequest.options ?? []).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`px-3 py-1 text-xs rounded-[8px] transition-colors ${
+                    opt.id === 'approve'
+                      ? 'bg-[var(--ym-primary)] text-white hover:opacity-90'
+                      : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] hover:bg-[var(--ym-input-border)]'
+                  }`}
+                  onClick={() => {
+                    void agent.send({
+                      inputResponses: [{ requestId: inputRequest.requestId, optionId: opt.id }],
+                    });
+                  }}
+                >
+                  {opt.id === 'approve' ? t.approve : opt.id === 'deny' ? t.deny : opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      }
+    }
+
+    const isRunning = state === 'input-streaming' || state === 'input-available' || state === 'approval-responded';
+
+    return (
+      <div key={index} className="text-[10px] px-2 py-1 mt-1 rounded-[6px] bg-black/5 text-[var(--ym-caption)]">
+        <span className="font-medium">{t.toolRunning}:</span> {toolName}
+        {isRunning && <Loader2 className="inline w-3 h-3 ml-1 animate-spin" />}
+      </div>
+    );
+  };
+
+  const renderPart = (part: EveMessagePart, index: number) => {
+    if (part.type === 'text' && part.text) {
+      return <div key={index} className="whitespace-pre-wrap">{part.text}</div>;
+    }
+
+    if (part.type === 'dynamic-tool') {
+      return renderDynamicTool(part, index);
+    }
+
+    return null;
   };
 
   return (
@@ -286,12 +328,8 @@ export function ImageStudio({ language }: Props) {
           <p className="text-xs text-[var(--ym-caption)] mt-0.5">{t.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          {messages.length > 0 && (
-            <button
-              type="button"
-              className="ym-btn-ghost text-xs py-1 px-3"
-              onClick={() => setMessages([])}
-            >
+          {agent.data.messages.length > 0 && (
+            <button type="button" className="ym-btn-ghost text-xs py-1 px-3" onClick={handleClear}>
               {t.clear}
             </button>
           )}
@@ -475,7 +513,7 @@ export function ImageStudio({ language }: Props) {
         {/* Chat area */}
         <div className="flex-1 flex flex-col min-w-0">
           <div ref={scrollRef} className="flex-1 overflow-y-auto pr-1 space-y-4 pb-4">
-            {messages.length === 0 ? (
+            {agent.data.messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
                 <div className="w-16 h-16 rounded-full bg-[var(--ym-muted)] flex items-center justify-center">
                   <Sparkles className="w-8 h-8 text-[var(--ym-primary)]" />
@@ -495,7 +533,7 @@ export function ImageStudio({ language }: Props) {
                 </div>
               </div>
             ) : (
-              messages.map((msg) => (
+              agent.data.messages.map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -507,52 +545,12 @@ export function ImageStudio({ language }: Props) {
                         : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] rounded-bl-[4px]'
                     }`}
                   >
-                    {msg.content && (
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
-                    )}
-                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {msg.toolCalls.map((tc, i) => (
-                          <div
-                            key={i}
-                            className="text-[10px] px-2 py-1 rounded-[6px] bg-black/5 text-[var(--ym-caption)]"
-                          >
-                            <span className="font-medium">{t.toolRunning}:</span> {tc.toolName}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {msg.images && msg.images.length > 0 && (
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        {msg.images.map((img, i) => (
-                          <div key={i} className="relative group">
-                            <img
-                              src={img.url}
-                              alt={`Generated ${img.platform}`}
-                              className="rounded-[8px] w-full object-cover cursor-pointer"
-                              onClick={() => window.open(img.url, '_blank')}
-                            />
-                            <div className="absolute bottom-1 left-1 right-1 flex justify-between items-center">
-                              <span className="text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-[4px]">
-                                {img.platform}
-                              </span>
-                              <button
-                                type="button"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white p-1 rounded-[4px]"
-                                onClick={() => window.open(img.url, '_blank')}
-                              >
-                                <Maximize2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {msg.parts.map((part, i) => renderPart(part, i))}
                   </div>
                 </div>
               ))
             )}
-            {isSending && (
+            {isBusy && agent.data.messages.at(-1)?.role !== 'assistant' && (
               <div className="flex justify-start">
                 <div className="bg-[var(--ym-muted)] rounded-[16px] rounded-bl-[4px] px-4 py-3 text-sm text-[var(--ym-muted-foreground)] flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -583,15 +581,15 @@ export function ImageStudio({ language }: Props) {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t.inputPlaceholder}
-                disabled={isSending}
+                disabled={isBusy}
               />
               <button
                 type="button"
                 className="shrink-0 ym-btn-primary p-2 rounded-[10px]"
-                disabled={isSending || !inputValue.trim()}
-                onClick={() => void handleSend()}
+                disabled={isBusy || !inputValue.trim()}
+                onClick={handleSend}
               >
-                {isSending ? (
+                {isBusy ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />

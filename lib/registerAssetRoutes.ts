@@ -27,7 +27,7 @@ import { isPlatformId, type ProductIdentityForPrompt } from "./platformStyles.js
 import { isReviewAvailable, reviewGeneratedImage } from "./imageReview.js";
 import { fetchBrandDnaForImageGen } from "./brandDna.js";
 import { isRemoveBgAvailable, removeBackground } from "./removeBackground.js";
-import { imageChat, type SidebarParams } from "./imageAgent.js";
+
 
 const ALLOWED_MIME = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -399,26 +399,4 @@ export function registerAssetRoutes(app: Express): void {
     }
   });
 
-  // ── Image Agent chat ──
-
-  app.post("/api/image-agent/chat", async (req: Request, res: Response) => {
-    try {
-      assertSupabaseReady();
-      const { messages, sidebarParams } = req.body || {};
-      if (!Array.isArray(messages) || messages.length === 0) {
-        return res.status(400).json({ success: false, error: "messages array is required" });
-      }
-
-      const result = await imageChat(messages, sidebarParams as SidebarParams);
-      res.json({
-        success: true,
-        response: result.response,
-        toolCalls: result.toolCalls,
-        generatedImages: result.generatedImages,
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Image agent chat failed";
-      res.status(500).json({ success: false, error: message });
-    }
-  });
 }

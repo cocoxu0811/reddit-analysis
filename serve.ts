@@ -21,11 +21,9 @@ import {
 } from "./competitive/runDaily.js";
 import { getDb, getMonitorCacheKv, replaceHistoryInDb, loadHistoryFromDb, setMonitorCacheKv } from "./db/sqlite.js";
 import { fetchRedditJsonForConvert } from "./lib/redditLinkConvert.js";
-import { chat as agentChat, type ChatResult } from "./lib/agent.js";
 import { registerAssetRoutes } from "./lib/registerAssetRoutes.js";
 import { registerKnowledgeRoutes } from "./lib/registerKnowledgeRoutes.js";
 import { ingestGeneratedIdeas, isKnowledgeConfigured } from "./lib/knowledge.js";
-import type { ModelMessage } from "ai";
 
 /** 与 db/sqlite、competitive/runDaily 一致：请在项目根目录启动进程 */
 const ROOT = process.cwd();
@@ -49,7 +47,7 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // ─── Strategist Agent Chat ─────────────────────────────────────────────────
+  // ─── Strategist Agent Chat (proxy to eve) ─────────────────────────────────
   app.post("/api/chat", async (req, res) => {
     try {
       const { messages } = req.body || {};
@@ -57,24 +55,37 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Missing messages[]" });
       }
 
-      const coreMessages: ModelMessage[] = messages.map((m: any) => ({
-        role: m.role === "user" ? "user" as const : "assistant" as const,
-        content: String(m.content ?? ""),
-      }));
+      const eveHost = process.env.EVE_HOST || "http://127.0.0.1:2000";
+      const { Client } = await import("eve/client");
+      const client = new Client({ host: eveHost });
+      const session = client.session();
 
-      const result: ChatResult = await agentChat(coreMessages);
+      const userMessage = messages
+        .filter((m: any) => m.role === "user")
+        .map((m: any) => String(m.content ?? ""))
+        .join("\n");
+
+      const response = await session.send({
+        message: userMessage,
+        clientContext: { mode: "strategist" },
+      });
+      const result = await response.result();
+
+      const toolCalls = result.events
+        .filter((e: any) => e.type === "action.result")
+        .map((e: any) => ({
+          tool: e.data?.toolName ?? "",
+          input: e.data?.input ?? {},
+          output: e.data?.output ?? null,
+        }));
 
       res.json({
         success: true,
-        response: result.response,
-        toolCalls: result.toolCalls.map((tc) => ({
-          tool: tc.toolName,
-          input: tc.input,
-          output: tc.output,
-        })),
+        response: result.message ?? "",
+        toolCalls,
       });
     } catch (error: any) {
-      console.error("[agent] chat error:", error);
+      console.error("[agent] chat proxy error:", error);
       res.status(500).json({ success: false, error: error.message || "Agent chat failed" });
     }
   });

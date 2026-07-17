@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "oiloil-ui-ux-guide": {
+      "source": "oil-oil/ui-ux-guide",
+      "sourceType": "github",
+      "skillPath": "skills/oiloil-ui-ux-guide/SKILL.md",
+      "computedHash": "9a912b8a0161d878b424cf3acfb31152158d9efaafd1ba4a7cd2296fe8577696"
+    }
+  }
+}
