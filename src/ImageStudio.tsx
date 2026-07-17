@@ -11,8 +11,6 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { useEveAgent } from 'eve/react';
-import type { EveMessagePart, EveDynamicToolPart } from 'eve/react';
 
 type PlatformOption = {
   id: string;
@@ -29,6 +27,20 @@ type AssetPickerItem = {
   name: string;
   publicUrl: string;
   hasClean: boolean;
+};
+
+type GeneratedImage = {
+  publicUrl: string;
+  platform: string;
+  generationId: string;
+};
+
+type ChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  generatedImages?: GeneratedImage[];
+  toolCalls?: Array<{ toolName: string; input: unknown; output: unknown }>;
 };
 
 const PLATFORMS: PlatformOption[] = [
@@ -143,32 +155,10 @@ export function ImageStudio({ language }: Props) {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
   const [inputValue, setInputValue] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isBusy, setIsBusy] = useState(false);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) ?? null;
-
-  const eveHost = (import.meta as any).env?.VITE_EVE_HOST || 'http://localhost:2000';
-
-  const agent = useEveAgent({
-    host: eveHost,
-    prepareSend: (input) => {
-      const ctx: Record<string, string | number | boolean> = { mode: 'image-studio' };
-      if (platform) ctx.platform = platform;
-      if (platform === 'custom') {
-        const w = parseInt(customW, 10);
-        const h = parseInt(customH, 10);
-        if (w > 0 && h > 0) { ctx.width = w; ctx.height = h; }
-      } else if (sizePreset) {
-        ctx.size = sizePreset;
-      }
-      if (count > 1) ctx.count = count;
-      if (quality !== 'auto') ctx.quality = quality;
-      if (selectedAssetId) ctx.selectedAssetId = selectedAssetId;
-      return { ...input, clientContext: ctx } as typeof input;
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const isBusy = agent.status === 'submitted' || agent.status === 'streaming';
 
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
@@ -195,9 +185,11 @@ export function ImageStudio({ language }: Props) {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [agent.data.messages]);
+  }, [messages]);
 
-  const handleSend = () => {
+  const conversationRef = useRef<Array<{ role: string; content: string }>>([]);
+
+  const handleSend = async () => {
     let text = inputValue.trim();
     if (!text || isBusy) return;
 
@@ -205,8 +197,49 @@ export function ImageStudio({ language }: Props) {
       text = `[参考素材ID: ${selectedAssetId}]\n${text}`;
     }
 
-    void agent.send({ message: text });
+    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', text };
+    setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
+    setIsBusy(true);
+
+    conversationRef.current.push({ role: 'user', content: text });
+
+    const sidebarParams: Record<string, unknown> = {};
+    if (platform) sidebarParams.platform = platform;
+    if (platform === 'custom') {
+      const w = parseInt(customW, 10);
+      const h = parseInt(customH, 10);
+      if (w > 0 && h > 0) { sidebarParams.width = w; sidebarParams.height = h; }
+    } else if (sizePreset) {
+      sidebarParams.size = sizePreset;
+    }
+    if (count > 1) sidebarParams.count = count;
+    if (quality !== 'auto') sidebarParams.quality = quality;
+
+    try {
+      const res = await fetch('/api/image-agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: conversationRef.current, sidebarParams }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Agent error');
+
+      conversationRef.current.push({ role: 'assistant', content: data.response });
+
+      const assistantMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        text: data.response,
+        generatedImages: data.generatedImages,
+        toolCalls: data.toolCalls,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to fetch');
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -222,99 +255,49 @@ export function ImageStudio({ language }: Props) {
   };
 
   const handleClear = () => {
-    agent.reset();
+    setMessages([]);
+    conversationRef.current = [];
     setInputValue('');
   };
 
-  const renderDynamicTool = (part: EveDynamicToolPart, index: number) => {
-    const { toolName, state } = part;
-
-    if (state === 'output-available') {
-      const output = part.output as any;
-      if (output?.results) {
-        const images = (output.results as any[]).filter((r: any) => r.publicUrl && r.status === 'completed');
-        if (images.length > 0) {
-          return (
-            <div key={index} className="mt-3 grid grid-cols-2 gap-2">
-              {images.map((img: any, i: number) => (
-                <div key={i} className="relative group">
-                  <img
-                    src={img.publicUrl}
-                    alt={`Generated ${output.platform ?? ''}`}
-                    className="rounded-[8px] w-full object-cover cursor-pointer"
-                    onClick={() => window.open(img.publicUrl, '_blank')}
-                  />
-                  <div className="absolute bottom-1 left-1 right-1 flex justify-between items-center">
-                    <span className="text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-[4px]">
-                      {output.platform ?? 'custom'}
-                    </span>
-                    <button
-                      type="button"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white p-1 rounded-[4px]"
-                      onClick={() => window.open(img.publicUrl, '_blank')}
-                    >
-                      <Maximize2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        }
-      }
-    }
-
-    if (state === 'approval-requested') {
-      const inputRequest = part.toolMetadata?.eve?.inputRequest;
-      if (inputRequest) {
-        return (
-          <div key={index} className="mt-2 p-3 rounded-[8px] border border-[var(--ym-input-border)] bg-[var(--ym-surface)]">
-            <p className="text-xs text-[var(--ym-foreground)] mb-2">{inputRequest.prompt}</p>
-            <div className="flex gap-2">
-              {(inputRequest.options ?? []).map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`px-3 py-1 text-xs rounded-[8px] transition-colors ${
-                    opt.id === 'approve'
-                      ? 'bg-[var(--ym-primary)] text-white hover:opacity-90'
-                      : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] hover:bg-[var(--ym-input-border)]'
-                  }`}
-                  onClick={() => {
-                    void agent.send({
-                      inputResponses: [{ requestId: inputRequest.requestId, optionId: opt.id }],
-                    });
-                  }}
-                >
-                  {opt.id === 'approve' ? t.approve : opt.id === 'deny' ? t.deny : opt.label}
-                </button>
-              ))}
-            </div>
+  const renderImages = (images: GeneratedImage[]) => (
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      {images.map((img, i) => (
+        <div key={i} className="relative group">
+          <img
+            src={img.publicUrl}
+            alt={`Generated ${img.platform}`}
+            className="rounded-[8px] w-full object-cover cursor-pointer"
+            onClick={() => window.open(img.publicUrl, '_blank')}
+          />
+          <div className="absolute bottom-1 left-1 right-1 flex justify-between items-center">
+            <span className="text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-[4px]">
+              {img.platform}
+            </span>
+            <button
+              type="button"
+              className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white p-1 rounded-[4px]"
+              onClick={() => window.open(img.publicUrl, '_blank')}
+            >
+              <Maximize2 className="w-3 h-3" />
+            </button>
           </div>
-        );
-      }
-    }
+        </div>
+      ))}
+    </div>
+  );
 
-    const isRunning = state === 'input-streaming' || state === 'input-available' || state === 'approval-responded';
-
+  const renderToolCalls = (toolCalls: ChatMessage['toolCalls']) => {
+    if (!toolCalls || toolCalls.length === 0) return null;
     return (
-      <div key={index} className="text-[10px] px-2 py-1 mt-1 rounded-[6px] bg-black/5 text-[var(--ym-caption)]">
-        <span className="font-medium">{t.toolRunning}:</span> {toolName}
-        {isRunning && <Loader2 className="inline w-3 h-3 ml-1 animate-spin" />}
+      <div className="mt-2 space-y-1">
+        {toolCalls.map((tc, i) => (
+          <div key={i} className="text-[10px] px-2 py-1 rounded-[6px] bg-black/5 text-[var(--ym-caption)]">
+            <span className="font-medium">{t.toolRunning}:</span> {tc.toolName}
+          </div>
+        ))}
       </div>
     );
-  };
-
-  const renderPart = (part: EveMessagePart, index: number) => {
-    if (part.type === 'text' && part.text) {
-      return <div key={index} className="whitespace-pre-wrap">{part.text}</div>;
-    }
-
-    if (part.type === 'dynamic-tool') {
-      return renderDynamicTool(part, index);
-    }
-
-    return null;
   };
 
   return (
@@ -328,7 +311,7 @@ export function ImageStudio({ language }: Props) {
           <p className="text-xs text-[var(--ym-caption)] mt-0.5">{t.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          {agent.data.messages.length > 0 && (
+          {messages.length > 0 && (
             <button type="button" className="ym-btn-ghost text-xs py-1 px-3" onClick={handleClear}>
               {t.clear}
             </button>
@@ -513,7 +496,7 @@ export function ImageStudio({ language }: Props) {
         {/* Chat area */}
         <div className="flex-1 flex flex-col min-w-0">
           <div ref={scrollRef} className="flex-1 overflow-y-auto pr-1 space-y-4 pb-4">
-            {agent.data.messages.length === 0 ? (
+            {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
                 <div className="w-16 h-16 rounded-full bg-[var(--ym-muted)] flex items-center justify-center">
                   <Sparkles className="w-8 h-8 text-[var(--ym-primary)]" />
@@ -533,7 +516,7 @@ export function ImageStudio({ language }: Props) {
                 </div>
               </div>
             ) : (
-              agent.data.messages.map((msg) => (
+              messages.map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -545,12 +528,14 @@ export function ImageStudio({ language }: Props) {
                         : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] rounded-bl-[4px]'
                     }`}
                   >
-                    {msg.parts.map((part, i) => renderPart(part, i))}
+                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                    {msg.generatedImages && msg.generatedImages.length > 0 && renderImages(msg.generatedImages)}
+                    {renderToolCalls(msg.toolCalls)}
                   </div>
                 </div>
               ))
             )}
-            {isBusy && agent.data.messages.at(-1)?.role !== 'assistant' && (
+            {isBusy && (
               <div className="flex justify-start">
                 <div className="bg-[var(--ym-muted)] rounded-[16px] rounded-bl-[4px] px-4 py-3 text-sm text-[var(--ym-muted-foreground)] flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />

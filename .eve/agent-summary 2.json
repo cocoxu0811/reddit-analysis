@@ -1,0 +1,127 @@
+{
+  "kind": "vercel-eve-agent-summary",
+  "schemaVersion": 3,
+  "generatorVersion": "0.24.6",
+  "agent": {
+    "name": "react-example",
+    "modelId": "google/gemini-2.5-flash"
+  },
+  "instructions": {
+    "logicalPath": "instructions.md",
+    "sourceKind": "markdown",
+    "markdown": "你是一个全能的 AI 营销与设计助手，服务于电商品牌团队。你有两大核心能力：\n\n## 1. 营销策略师（Marketing Strategist）\n\n帮助用户完成 Reddit 社区调研和内容营销：\n\n- **Reddit 社区调研**：扫描指定 subreddit 的最新帖子，分析讨论趋势、用户痛点、热门话题\n- **数据分析报告**：基于 Reddit 数据集生成结构化报告（摘要、痛点、好评特性、品牌、高频词）\n- **内容创作**：基于分析报告或用户指令生成 Reddit 帖子草稿\n- **Subreddit 推荐**：为内容创意推荐最匹配的 subreddit\n- **竞品分析**：查看 Instagram 竞品监控数据\n\n### 内容生成决策流程\n1. 用户指定了目标 subreddit？否 → 先询问或用 suggest_subreddits 推荐\n2. **先搜索再生成**：调用 search_reddit 搜索高赞帖子，学习社区语气和文化\n3. 将搜索结果传给 generate_content_from_prompt 作为风格参考\n4. 用户指定了数量就用该数量，否则默认 6 篇\n\n## 2. 产品图片设计师（Image Designer）\n\n帮助用户完成产品电商图片生成：\n\n- **生成电商平台适配图**：天猫、京东、Temu、Instagram 或自定义尺寸\n- **去除产品背景**：将产品从复杂背景中抠出\n- **批量生成**：根据不同平台需求批量处理\n- **基于参考图保持一致性**：利用已采纳的生成结果保持跨平台视觉统一\n\n### 图片生成决策流程\n1. 用户是否指定了产品素材？否 → 调用 list_product_assets 让用户选择\n2. 确定平台和尺寸（从消息或 clientContext 获取）\n3. 搜索品牌规范（如果知识库可用）\n4. 调用 generate_platform_image 生成图片\n5. 调用 review_image 质检\n6. 向用户展示结果和质检报告\n\n## clientContext 说明\n前端会通过 clientContext 传递当前界面和预设参数：\n- `mode`: \"strategist\" | \"image-studio\"\n- `platform`, `size`, `count`, `quality`：图片生成侧栏预设参数\n\n根据 mode 优先使用对应领域的工具，但不要拒绝跨领域请求。\n\n## 通用原则\n- 通过调用工具来执行任务，不自己编造数据或图片\n- 生成的 Reddit 内容必须像真实用户写的，避免营销感\n- 产品形状、颜色、品牌元素必须保持准确\n- 用中文回复用户，除非用户用英文提问\n"
+  },
+  "schedules": [],
+  "tools": [
+    {
+      "name": "analyze_reddit_data",
+      "description": "对 Reddit 帖子和评论数据进行深度分析，生成结构化报告：讨论摘要、用户痛点、被赞特性、提及品牌、高频词汇。",
+      "logicalPath": "tools/analyze_reddit_data.ts"
+    },
+    {
+      "name": "generate_content_from_prompt",
+      "description": "基于用户指令和目标 subreddit 直接生成 Reddit 帖子创意。不需要分析报告。可传入真人帖子范文作为风格参考。",
+      "logicalPath": "tools/generate_content_from_prompt.ts"
+    },
+    {
+      "name": "generate_content_ideas",
+      "description": "基于分析报告生成 Reddit 帖子创意，包含标题、正文和推荐 subreddit。数量由 count 参数控制。",
+      "logicalPath": "tools/generate_content_ideas.ts"
+    },
+    {
+      "name": "generate_platform_image",
+      "description": "根据平台、尺寸、prompt 等参数为指定产品素材生成电商适配图。支持天猫、京东、Temu、Instagram或自定义尺寸。消耗 API 额度，需要审批。",
+      "logicalPath": "tools/generate_platform_image.ts"
+    },
+    {
+      "name": "get_competitive_data",
+      "description": "获取 Instagram 竞品监控的最新缓存数据，包括各竞品账号的帖子、互动数据和内容分类。",
+      "logicalPath": "tools/get_competitive_data.ts"
+    },
+    {
+      "name": "list_product_assets",
+      "description": "列出素材库中的产品图片。返回产品名称、描述、缩略图URL等信息，供用户选择要生成的产品。",
+      "logicalPath": "tools/list_product_assets.ts"
+    },
+    {
+      "name": "remove_background",
+      "description": "去除产品图片的背景，生成纯白底的产品抠图。后续生成时会自动优先使用抠图版本。",
+      "logicalPath": "tools/remove_background.ts"
+    },
+    {
+      "name": "review_image",
+      "description": "用 VLM（视觉语言模型）审查生成的图片，对比原图检查产品形状、颜色、品牌元素是否保持一致。返回通过/警告/失败状态。",
+      "logicalPath": "tools/review_image.ts"
+    },
+    {
+      "name": "scan_subreddit",
+      "description": "扫描一个或多个 subreddit 的最新帖子，获取帖子内容、评论、情绪分类和用户意图标注。用于了解社区最新讨论动态。",
+      "logicalPath": "tools/scan_subreddit.ts"
+    },
+    {
+      "name": "search_brand_guidelines",
+      "description": "从 RAG 知识库搜索品牌视觉规范（色彩、风格、摄影要求等），用于指导图片生成保持品牌一致性。",
+      "logicalPath": "tools/search_brand_guidelines.ts"
+    },
+    {
+      "name": "search_reddit",
+      "description": "搜索 Reddit 帖子。用于在生成内容前获取目标社区的真人帖子范文，学习写作风格和社区文化。",
+      "logicalPath": "tools/search_reddit.ts"
+    },
+    {
+      "name": "suggest_subreddits",
+      "description": "为一组内容创意推荐最匹配的 subreddit。基于内容主题、角度和正文来判断最适合发布的社区。",
+      "logicalPath": "tools/suggest_subreddits.ts"
+    }
+  ],
+  "skills": [],
+  "connections": [],
+  "channels": [
+    {
+      "name": "eve",
+      "method": "GET",
+      "urlPath": "/eve/v1/info",
+      "type": "http",
+      "logicalPath": "channels/eve.ts",
+      "adapterKind": "http"
+    },
+    {
+      "name": "eve",
+      "method": "POST",
+      "urlPath": "/eve/v1/session",
+      "type": "http",
+      "logicalPath": "channels/eve.ts",
+      "adapterKind": "http"
+    },
+    {
+      "name": "eve",
+      "method": "POST",
+      "urlPath": "/eve/v1/session/:sessionId",
+      "type": "http",
+      "logicalPath": "channels/eve.ts",
+      "adapterKind": "http"
+    },
+    {
+      "name": "eve",
+      "method": "POST",
+      "urlPath": "/eve/v1/session/:sessionId/cancel",
+      "type": "http",
+      "logicalPath": "channels/eve.ts",
+      "adapterKind": "http"
+    },
+    {
+      "name": "eve",
+      "method": "GET",
+      "urlPath": "/eve/v1/session/:sessionId/stream",
+      "type": "http",
+      "logicalPath": "channels/eve.ts",
+      "adapterKind": "http"
+    }
+  ],
+  "sandbox": null,
+  "subagents": [],
+  "diagnostics": {
+    "errors": 0,
+    "warnings": 0
+  }
+}

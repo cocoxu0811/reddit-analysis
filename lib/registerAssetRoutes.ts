@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import multer from "multer";
+import { imageChat, type SidebarParams } from "./imageAgent.js";
 import {
   assertSupabaseReady,
   createAsset,
@@ -395,6 +396,22 @@ export function registerAssetRoutes(app: Express): void {
       res.json({ success: true, asset: updated });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Background removal failed";
+      res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  // ── Image Agent chat ──────────────────────────────
+  app.post("/api/image-agent/chat", async (req: Request, res: Response) => {
+    try {
+      const { messages, sidebarParams } = req.body || {};
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ success: false, error: "Missing messages[]" });
+      }
+      const result = await imageChat(messages, sidebarParams as SidebarParams);
+      res.json({ success: true, ...result });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Image agent error";
+      console.error("[image-agent]", error);
       res.status(500).json({ success: false, error: message });
     }
   });

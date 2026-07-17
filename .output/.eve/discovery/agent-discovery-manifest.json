@@ -1,0 +1,163 @@
+{
+  "agentId": "react-example",
+  "agentRoot": "/Users/xuke/Documents/reddit/reddit-analysis/agent",
+  "appRoot": "/Users/xuke/Documents/reddit/reddit-analysis",
+  "channels": [
+    {
+      "sourceKind": "module",
+      "logicalPath": "channels/eve.ts",
+      "sourceId": "channels/eve.ts"
+    }
+  ],
+  "connections": [],
+  "diagnosticsSummary": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "extensions": [],
+  "resolvedExtensions": [],
+  "hooks": [],
+  "instructions": [
+    {
+      "definition": {
+        "markdown": "你是一个 AI 营销策略师（Marketing Strategist），服务于电商品牌团队。\n\n## 核心能力\n\n- **Reddit 社区调研**：扫描指定 subreddit 的最新帖子，分析讨论趋势、用户痛点、热门话题\n- **数据分析报告**：基于 Reddit 数据集生成结构化报告（摘要、痛点、好评特性、品牌、高频词）\n- **内容创作**：基于分析报告或用户指令生成 Reddit 帖子草稿\n- **Subreddit 推荐**：为内容创意推荐最匹配的 subreddit\n- **竞品分析**：查看 Instagram 竞品监控数据\n\n## 内容生成决策流程\n1. 用户指定了目标 subreddit？否 → 先询问或用 suggest_subreddits 推荐\n2. **先搜索再生成**：调用 search_reddit 搜索高赞帖子，学习社区语气和文化\n3. 将搜索结果传给 generate_content_from_prompt 作为风格参考\n4. 用户指定了数量就用该数量，否则默认 6 篇\n\n## 图片生成\n当用户需要生成产品图片、去背景、批量生图等图片相关任务时，**委派给 image_designer 子 Agent**。\n在委派消息中包含：\n- 具体任务描述\n- 目标平台和尺寸（如果用户指定了）\n- 产品素材 ID（如果已知）\n- 生成数量\n- 任何额外的用户要求\n\n## clientContext 说明\n前端会通过 clientContext 传递界面和参数信息：\n- `mode`: \"strategist\" | \"image-studio\"\n- `platform`, `size`, `count`, `quality`：图片生成预设参数\n- `selectedAssetId`：选中的产品素材 ID\n\n当 mode 为 \"image-studio\" 时，用户主要想进行图片操作，请直接委派给 image_designer。\n\n## 通用原则\n- 通过调用工具来执行任务，不自己编造数据\n- 生成的 Reddit 内容必须像真实用户写的，避免营销感\n- 用中文回复用户，除非用户用英文提问\n"
+      },
+      "sourceKind": "markdown",
+      "logicalPath": "instructions.md",
+      "sourceId": "instructions.md"
+    }
+  ],
+  "lib": [],
+  "kind": "eve-agent-discovery-manifest",
+  "sandbox": null,
+  "sandboxWorkspaces": [],
+  "schedules": [
+    {
+      "sourceKind": "module",
+      "logicalPath": "schedules/daily-competitive-scan.ts",
+      "sourceId": "schedules/daily-competitive-scan.ts"
+    },
+    {
+      "sourceKind": "module",
+      "logicalPath": "schedules/weekly-report.ts",
+      "sourceId": "schedules/weekly-report.ts"
+    }
+  ],
+  "skills": [],
+  "tools": [
+    {
+      "sourceKind": "module",
+      "logicalPath": "tools/analyze_reddit_data.ts",
+      "sourceId": "tools/analyze_reddit_data.ts"
+    },
+    {
+      "sourceKind": "module",
+      "logicalPath": "tools/generate_content_from_prompt.ts",
+      "sourceId": "tools/generate_content_from_prompt.ts"
+    },
+    {
+      "sourceKind": "module",
+      "logicalPath": "tools/generate_content_ideas.ts",
+      "sourceId": "tools/generate_content_ideas.ts"
+    },
+    {
+      "sourceKind": "module",
+      "logicalPath": "tools/get_competitive_data.ts",
+      "sourceId": "tools/get_competitive_data.ts"
+    },
+    {
+      "sourceKind": "module",
+      "logicalPath": "tools/scan_subreddit.ts",
+      "sourceId": "tools/scan_subreddit.ts"
+    },
+    {
+      "sourceKind": "module",
+      "logicalPath": "tools/search_reddit.ts",
+      "sourceId": "tools/search_reddit.ts"
+    },
+    {
+      "sourceKind": "module",
+      "logicalPath": "tools/suggest_subreddits.ts",
+      "sourceId": "tools/suggest_subreddits.ts"
+    }
+  ],
+  "version": 12,
+  "subagents": [
+    {
+      "entryPath": "/Users/xuke/Documents/reddit/reddit-analysis/agent/subagents/image_designer",
+      "logicalPath": "subagents/image_designer",
+      "manifest": {
+        "agentId": "image_designer",
+        "agentRoot": "/Users/xuke/Documents/reddit/reddit-analysis/agent/subagents/image_designer",
+        "appRoot": "/Users/xuke/Documents/reddit/reddit-analysis",
+        "channels": [],
+        "connections": [],
+        "diagnosticsSummary": {
+          "errors": 0,
+          "warnings": 0
+        },
+        "extensions": [],
+        "resolvedExtensions": [],
+        "hooks": [],
+        "instructions": [
+          {
+            "definition": {
+              "markdown": "你是一个专业的产品图片 AI 设计师。你帮助用户完成以下任务：\n\n1. **生成电商平台适配图**：天猫、京东、Temu、Instagram 或自定义尺寸\n2. **去除产品背景**：将产品从复杂背景中抠出\n3. **风格变换与批量生成**：根据不同平台需求批量处理\n4. **基于参考图保持一致性**：利用已采纳的生成结果保持跨平台视觉统一\n\n## 工作方式\n- 你通过调用工具来执行具体任务，不自己编造图片\n- 父 Agent 会在消息中告诉你目标平台、尺寸、数量等参数\n- 生成前，你会自动搜索品牌规范和已采纳的历史生成，确保一致性\n- 生成后，你会自动调用 VLM 审查工具检查质量\n\n## 决策流程\n1. 用户是否指定了产品素材？\n   - 是 → 直接使用该素材 ID\n   - 否 → 调用 list_product_assets 让用户选择\n2. 确定平台和尺寸\n3. 搜索品牌规范（如果知识库可用）\n4. 调用 generate_platform_image 生成图片\n5. 调用 review_image 质检\n6. 返回结果和质检报告\n\n## 重要原则\n- 产品形状、颜色、品牌元素必须保持准确\n- 如果要求批量生成（count > 1），每次都使用相同的产品身份信息\n- 用中文回复，除非收到英文指令\n"
+            },
+            "sourceKind": "markdown",
+            "logicalPath": "instructions.md",
+            "sourceId": "instructions.md"
+          }
+        ],
+        "lib": [],
+        "kind": "eve-agent-discovery-manifest",
+        "sandbox": null,
+        "sandboxWorkspaces": [],
+        "schedules": [],
+        "skills": [],
+        "tools": [
+          {
+            "sourceKind": "module",
+            "logicalPath": "tools/generate_platform_image.ts",
+            "sourceId": "tools/generate_platform_image.ts"
+          },
+          {
+            "sourceKind": "module",
+            "logicalPath": "tools/list_product_assets.ts",
+            "sourceId": "tools/list_product_assets.ts"
+          },
+          {
+            "sourceKind": "module",
+            "logicalPath": "tools/remove_background.ts",
+            "sourceId": "tools/remove_background.ts"
+          },
+          {
+            "sourceKind": "module",
+            "logicalPath": "tools/review_image.ts",
+            "sourceId": "tools/review_image.ts"
+          },
+          {
+            "sourceKind": "module",
+            "logicalPath": "tools/search_brand_guidelines.ts",
+            "sourceId": "tools/search_brand_guidelines.ts"
+          }
+        ],
+        "version": 12,
+        "subagents": [],
+        "configModule": {
+          "sourceKind": "module",
+          "logicalPath": "agent.ts",
+          "sourceId": "agent.ts"
+        }
+      },
+      "rootPath": "/Users/xuke/Documents/reddit/reddit-analysis/agent/subagents/image_designer",
+      "sourceId": "subagents/image_designer",
+      "subagentId": "image_designer"
+    }
+  ],
+  "configModule": {
+    "sourceKind": "module",
+    "logicalPath": "agent.ts",
+    "sourceId": "agent.ts"
+  }
+}
