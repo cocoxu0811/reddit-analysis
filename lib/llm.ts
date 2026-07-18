@@ -32,7 +32,7 @@ export function normalizeAiProvider(raw: unknown): AiProvider {
 export function getDefaultAiProvider(): AiProvider {
   const configured = process.env.AI_PROVIDER || process.env.LLM_PROVIDER;
   if (configured) return normalizeAiProvider(configured);
-  if (process.env.MINIMAX_API_KEY && !process.env.GEMINI_API_KEY) return "minimax";
+  if (process.env.MINIMAX_API_KEY) return "minimax";
   return "gemini";
 }
 
@@ -95,7 +95,7 @@ function normalizeGeminiSchema(value: unknown): unknown {
 
 async function generateJsonWithMiniMax(
   prompt: string,
-  model = process.env.MINIMAX_MODEL || "MiniMax-M2.7"
+  model = process.env.MINIMAX_MODEL || "MiniMax-M3"
 ): Promise<Record<string, unknown>> {
   const apiKey = requireEnv("MINIMAX_API_KEY");
   // 国际版: https://api.minimax.io/v1  中国大陆版: https://api.minimax.chat/v1

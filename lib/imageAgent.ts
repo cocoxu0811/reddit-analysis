@@ -12,7 +12,6 @@ import {
   isStepCount,
   type ModelMessage,
 } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 import {
   listAssets,
@@ -37,12 +36,7 @@ import { isReviewAvailable, reviewGeneratedImage } from "./imageReview.js";
 import { fetchBrandDnaForImageGen } from "./brandDna.js";
 import { isRemoveBgAvailable, removeBackground } from "./removeBackground.js";
 import { updateAssetClean } from "./assetLibrary.js";
-
-function getGoogleProvider() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-  return createGoogleGenerativeAI({ apiKey });
-}
+import { getMiniMaxAgentModel } from "./minimaxProvider.js";
 
 const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计师。你帮助用户完成以下任务：
 
@@ -380,11 +374,6 @@ export async function imageChat(
   sidebarParams: SidebarParams = {},
   options: { maxSteps?: number } = {},
 ): Promise<ImageChatResult> {
-  const google = getGoogleProvider();
-  const model = google(
-    process.env.GEMINI_AGENT_MODEL || "gemini-2.5-flash"
-  );
-
   const sidebarContext = [];
   if (sidebarParams.platform) sidebarContext.push(`预设平台: ${sidebarParams.platform}`);
   if (sidebarParams.size) sidebarContext.push(`预设尺寸: ${sidebarParams.size}`);
@@ -397,7 +386,7 @@ export async function imageChat(
     : IMAGE_AGENT_SYSTEM_PROMPT;
 
   const result = await generateText({
-    model,
+    model: getMiniMaxAgentModel(),
     system: systemWithParams,
     messages,
     tools: imageAgentTools,

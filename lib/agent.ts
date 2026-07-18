@@ -11,8 +11,8 @@ import {
   isStepCount,
   type ModelMessage,
 } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
+import { getMiniMaxAgentModel } from "./minimaxProvider.js";
 import {
   generateRedditAnalysisReport,
   generateContentIdeas,
@@ -37,12 +37,6 @@ function formatPostAge(createdUtc: number): string {
   if (days < 30) return `${days}d ago`;
   if (days < 365) return `${Math.floor(days / 30)}mo ago`;
   return `${(days / 365).toFixed(1)}y ago`;
-}
-
-function getGoogleProvider() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-  return createGoogleGenerativeAI({ apiKey });
 }
 
 const STRATEGIST_SYSTEM_PROMPT = `你是一个 AI Marketing Strategist（营销策略师）。你帮助用户完成以下任务：
@@ -370,13 +364,8 @@ export async function chat(
   messages: ModelMessage[],
   options: { maxSteps?: number } = {}
 ): Promise<ChatResult> {
-  const google = getGoogleProvider();
-  const model = google(
-    process.env.GEMINI_AGENT_MODEL || "gemini-2.5-flash"
-  );
-
   const result = await generateText({
-    model,
+    model: getMiniMaxAgentModel(),
     system: STRATEGIST_SYSTEM_PROMPT,
     messages,
     tools: strategistTools,
