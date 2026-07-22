@@ -39,6 +39,7 @@ type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  referenceAsset?: Pick<AssetPickerItem, 'id' | 'name' | 'publicUrl'>;
   generatedImages?: GeneratedImage[];
   toolCalls?: Array<{ toolName: string; input: unknown; output: unknown }>;
 };
@@ -190,19 +191,31 @@ export function ImageStudio({ language }: Props) {
   const conversationRef = useRef<Array<{ role: string; content: string }>>([]);
 
   const handleSend = async () => {
-    let text = inputValue.trim();
-    if (!text || isBusy) return;
+    const visibleText = inputValue.trim();
+    if (!visibleText || isBusy) return;
 
-    if (selectedAssetId) {
-      text = `[参考素材ID: ${selectedAssetId}]\n${text}`;
-    }
+    const referenceAsset = selectedAsset
+      ? {
+          id: selectedAsset.id,
+          name: selectedAsset.name,
+          publicUrl: selectedAsset.publicUrl,
+        }
+      : undefined;
+    const agentText = selectedAssetId
+      ? `[参考素材ID: ${selectedAssetId}]\n${visibleText}`
+      : visibleText;
 
-    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', text };
+    const userMsg: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      text: visibleText,
+      referenceAsset,
+    };
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
     setIsBusy(true);
 
-    conversationRef.current.push({ role: 'user', content: text });
+    conversationRef.current.push({ role: 'user', content: agentText });
 
     const sidebarParams: Record<string, unknown> = {};
     if (platform) sidebarParams.platform = platform;
@@ -528,6 +541,22 @@ export function ImageStudio({ language }: Props) {
                         : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] rounded-bl-[4px]'
                     }`}
                   >
+                    {msg.referenceAsset && (
+                      <button
+                        type="button"
+                        className="mb-2 flex w-full items-center gap-2 rounded-[10px] bg-white/10 p-2 text-left hover:bg-white/15"
+                        onClick={() => window.open(msg.referenceAsset?.publicUrl, '_blank')}
+                      >
+                        <img
+                          src={msg.referenceAsset.publicUrl}
+                          alt={msg.referenceAsset.name}
+                          className="h-14 w-14 shrink-0 rounded-[8px] object-cover"
+                        />
+                        <span className="min-w-0 truncate text-xs opacity-90">
+                          {msg.referenceAsset.name}
+                        </span>
+                      </button>
+                    )}
                     <div className="whitespace-pre-wrap">{msg.text}</div>
                     {msg.generatedImages && msg.generatedImages.length > 0 && renderImages(msg.generatedImages)}
                     {renderToolCalls(msg.toolCalls)}
