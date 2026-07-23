@@ -13,6 +13,7 @@ import {
 } from "ai";
 import { z } from "zod";
 import { getMiniMaxAgentModel } from "./minimaxProvider.js";
+import { stripModelThinking } from "./modelOutput.js";
 import {
   generateRedditAnalysisReport,
   generateContentIdeas,
@@ -381,7 +382,7 @@ export async function chat(
   );
 
   return {
-    response: result.text,
+    response: stripModelThinking(result.text),
     toolCalls,
   };
 }
