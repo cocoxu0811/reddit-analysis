@@ -284,6 +284,8 @@ export async function createGenerationRecord(input: {
       platform_id: input.platformId,
       prompt_used: input.promptUsed,
       status: "processing",
+      model:
+        process.env.GEMINI_IMAGE_MODEL?.trim() || "gemini-3.1-flash-image",
     })
     .select("*")
     .single();

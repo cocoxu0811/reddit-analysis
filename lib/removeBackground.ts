@@ -16,7 +16,8 @@ export async function removeBackground(input: {
   if (!apiKey) throw new Error("GEMINI_API_KEY is required for background removal");
 
   const ai = new GoogleGenAI({ apiKey });
-  const model = process.env.GEMINI_IMAGE_MODEL || "gemini-2.0-flash-preview-image-generation";
+  const model =
+    process.env.GEMINI_IMAGE_MODEL?.trim() || "gemini-3.1-flash-image";
 
   const response = await ai.models.generateContent({
     model,
@@ -37,7 +38,7 @@ export async function removeBackground(input: {
       },
     ],
     config: {
-      responseModalities: ["image", "text"],
+      responseModalities: ["IMAGE"],
     },
   });
 

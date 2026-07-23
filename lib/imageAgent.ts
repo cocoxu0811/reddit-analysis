@@ -12,7 +12,6 @@ import {
   isStepCount,
   type ModelMessage,
 } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 import {
   listAssets,
@@ -37,12 +36,8 @@ import { isReviewAvailable, reviewGeneratedImage } from "./imageReview.js";
 import { fetchBrandDnaForImageGen } from "./brandDna.js";
 import { isRemoveBgAvailable, removeBackground } from "./removeBackground.js";
 import { updateAssetClean } from "./assetLibrary.js";
-
-function getGoogleProvider() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-  return createGoogleGenerativeAI({ apiKey });
-}
+import { getMiniMaxAgentModel } from "./minimaxProvider.js";
+import { stripModelThinking } from "./modelOutput.js";
 
 const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计师。你帮助用户完成以下任务：
 
@@ -70,6 +65,8 @@ const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计�
 ## 重要原则
 - 产品形状、颜色、品牌元素必须保持准确
 - 如果用户要求批量生成（count > 1），每次都使用相同的产品身份信息
+- 如果工具返回失败，必须原样说明工具返回的具体错误；禁止猜测或虚构“计费限制”等原因
+- 如果 review_image 返回 reviewed=false，必须说明“质检未执行成功”，不得把 null 或兜底字段描述为通过
 - 用中文回复用户，除非用户用英文提问`;
 
 export type SidebarParams = {
@@ -380,11 +377,6 @@ export async function imageChat(
   sidebarParams: SidebarParams = {},
   options: { maxSteps?: number } = {},
 ): Promise<ImageChatResult> {
-  const google = getGoogleProvider();
-  const model = google(
-    process.env.GEMINI_AGENT_MODEL || "gemini-2.5-flash"
-  );
-
   const sidebarContext = [];
   if (sidebarParams.platform) sidebarContext.push(`预设平台: ${sidebarParams.platform}`);
   if (sidebarParams.size) sidebarContext.push(`预设尺寸: ${sidebarParams.size}`);
@@ -397,7 +389,7 @@ export async function imageChat(
     : IMAGE_AGENT_SYSTEM_PROMPT;
 
   const result = await generateText({
-    model,
+    model: getMiniMaxAgentModel(),
     system: systemWithParams,
     messages,
     tools: imageAgentTools,
@@ -413,9 +405,18 @@ export async function imageChat(
   );
 
   const generatedImages: ImageChatResult["generatedImages"] = [];
+  const generationErrors: string[] = [];
   for (const tc of toolCalls) {
     if (tc.toolName === "generate_platform_image" && tc.output) {
-      const out = tc.output as { results?: Array<{ publicUrl?: string | null; generationId?: string; status?: string }>; platform?: string };
+      const out = tc.output as {
+        results?: Array<{
+          publicUrl?: string | null;
+          generationId?: string;
+          status?: string;
+          error?: string;
+        }>;
+        platform?: string;
+      };
       for (const r of out.results ?? []) {
         if (r.publicUrl && r.status === "completed") {
           generatedImages.push({
@@ -423,13 +424,23 @@ export async function imageChat(
             platform: String(out.platform ?? "custom"),
             generationId: r.generationId ?? "",
           });
+        } else if (r.status === "failed" && r.error) {
+          generationErrors.push(r.error);
         }
       }
     }
   }
 
+  const uniqueErrors = [...new Set(generationErrors)];
+  let response = stripModelThinking(result.text);
+  if (uniqueErrors.length > 0 && generatedImages.length === 0) {
+    response = `图片生成失败：\n${uniqueErrors.map((error) => `- ${error}`).join("\n")}`;
+  } else if (uniqueErrors.length > 0) {
+    response = `${response}\n\n部分图片生成失败：\n${uniqueErrors.map((error) => `- ${error}`).join("\n")}`;
+  }
+
   return {
-    response: result.text,
+    response,
     toolCalls,
     generatedImages,
   };
