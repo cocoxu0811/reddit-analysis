@@ -26,7 +26,7 @@ import {
   listPlatformStyles,
   type ProductAsset,
 } from "./assetLibrary.js";
-import { generatePlatformImage } from "./imageGen.js";
+import { generatePlatformImage, generateTextImage } from "./imageGen.js";
 import {
   PLATFORM_STYLE_FALLBACKS,
   type PlatformStyle,
@@ -38,6 +38,10 @@ import { isRemoveBgAvailable, removeBackground } from "./removeBackground.js";
 import { updateAssetClean } from "./assetLibrary.js";
 import { getMiniMaxAgentModel } from "./minimaxProvider.js";
 import { stripModelThinking } from "./modelOutput.js";
+import {
+  buildGenerationStoragePath,
+  uploadToStorage,
+} from "../db/supabase.js";
 
 const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计师。你帮助用户完成以下任务：
 
@@ -54,8 +58,8 @@ const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计�
 
 ## 决策流程
 1. 用户是否指定了产品素材？
-   - 是 → 直接使用该素材 ID
-   - 否 → 调用 list_product_assets 让用户选择
+   - 是 → 使用该素材进行图生图
+   - 否 → 仍然可以根据用户描述直接进行文生图，不得要求必须选择素材
 2. 确定平台和尺寸（从消息或侧栏参数获取）
 3. 搜索品牌规范（如果知识库可用）
 4. 调用 generate_platform_image 生成图片
@@ -64,6 +68,7 @@ const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计�
 
 ## 重要原则
 - 产品形状、颜色、品牌元素必须保持准确
+- 没有参考素材时，不得宣称完成了产品一致性质检
 - 如果用户要求批量生成（count > 1），每次都使用相同的产品身份信息
 - 每一次“生成/再生成/换平台”请求都必须在当前轮调用 generate_platform_image；禁止复用历史图片链接冒充新结果
 - 如果工具返回失败，必须原样说明工具返回的具体错误；禁止猜测或虚构“计费限制”等原因
@@ -107,7 +112,7 @@ function isExplicitGenerationRequest(text: string): boolean {
   if (/(?:不要|别|停止|取消).{0,8}(?:生成|生图|主图|图片)/i.test(text)) {
     return false;
   }
-  return /生成|生图|主图|适配图|生活方式图|再来一张|再生成|\b(?:generate|create|render|make)\b/i.test(
+  return /生成|生图|出图|做图|画一?张|绘制|主图|适配图|生活方式图|再来一张|再生成|\b(?:generate|create|render|make)\b/i.test(
     text,
   );
 }
@@ -174,6 +179,313 @@ function buildIdentityForPrompt(asset: ProductAsset): ProductIdentityForPrompt {
   };
 }
 
+type GenerationPlatform = "tmall" | "jd" | "temu" | "instagram" | "custom";
+
+type GenerationInput = {
+  assetId?: string;
+  platform?: GenerationPlatform;
+  width?: number;
+  height?: number;
+  size?: "1:1" | "3:2" | "2:3" | "4:3" | "3:4" | "9:16" | "16:9";
+  count: number;
+  extraPrompt?: string;
+  seed?: number;
+  useCleanBg: boolean;
+};
+
+type GenerationOutput = {
+  assetName: string;
+  platform: GenerationPlatform;
+  count: number;
+  results: Array<{
+    generationId: string;
+    publicUrl: string | null;
+    status: string;
+    promptUsed: string;
+    error?: string;
+  }>;
+};
+
+function resolveRequestedPlatform(
+  text: string,
+  sidebarParams: SidebarParams,
+): GenerationPlatform {
+  if (/天猫|淘宝|\btmall\b/i.test(text)) return "tmall";
+  if (/京东|\bjd\b|jd\.com/i.test(text)) return "jd";
+  if (/\bte\s*mu\b/i.test(text)) return "temu";
+  if (/instagram|\bins\b/i.test(text)) return "instagram";
+  const preset = sidebarParams.platform;
+  return preset === "tmall" ||
+    preset === "jd" ||
+    preset === "temu" ||
+    preset === "instagram" ||
+    preset === "custom"
+    ? preset
+    : "custom";
+}
+
+function resolveRequestedSize(
+  text: string,
+  sidebarParams: SidebarParams,
+): GenerationInput["size"] {
+  const explicit = text.match(/\b(1:1|3:2|2:3|4:3|3:4|9:16|16:9)\b/)?.[1];
+  const size = explicit || sidebarParams.size;
+  return size === "1:1" ||
+    size === "3:2" ||
+    size === "2:3" ||
+    size === "4:3" ||
+    size === "3:4" ||
+    size === "9:16" ||
+    size === "16:9"
+    ? size
+    : undefined;
+}
+
+function resolveRequestedCount(text: string, sidebarParams: SidebarParams): number {
+  const explicit = text.match(/(?:生成|生图|再来|做)\s*(\d{1,2})\s*张/i)?.[1];
+  const count = explicit ? Number(explicit) : (sidebarParams.count ?? 1);
+  return Math.max(1, Math.min(10, Number.isFinite(count) ? count : 1));
+}
+
+function cleanGenerationPrompt(text: string): string {
+  return text.replace(/\[参考素材ID:\s*[^\]\s]+\]\s*/g, "").trim();
+}
+
+async function executeReferenceGeneration(
+  input: GenerationInput & { assetId: string },
+): Promise<GenerationOutput> {
+  const {
+    assetId,
+    platform,
+    width,
+    height,
+    size,
+    count,
+    extraPrompt,
+    seed,
+    useCleanBg,
+  } = input;
+  const asset = await getAsset(assetId);
+  if (!asset) throw new Error(`Asset ${assetId} not found`);
+
+  const platformStyle = await resolveStyle(platform, size, width, height);
+  const [sourceBuffer, cleanBuffer] = await Promise.all([
+    downloadAssetBuffer(asset),
+    useCleanBg ? downloadCleanBuffer(asset) : Promise.resolve(null),
+  ]);
+  const identity = buildIdentityForPrompt(asset);
+
+  let approvedContext = "";
+  try {
+    const approved = await getApprovedGenerations(assetId);
+    if (approved.length > 0) {
+      approvedContext = approved
+        .filter((generation) => generation.platformId !== platform)
+        .slice(0, 3)
+        .map(
+          (generation) =>
+            `${generation.platformId}: ${generation.promptUsed.slice(0, 300)}`,
+        )
+        .join("\n");
+    }
+  } catch {
+    /* non-blocking */
+  }
+
+  let brandDna = "";
+  try {
+    brandDna = await fetchBrandDnaForImageGen({
+      productName: asset.name,
+      tags: asset.tags,
+    });
+  } catch {
+    /* non-blocking */
+  }
+
+  const combinedExtra = [extraPrompt, brandDna].filter(Boolean).join("\n\n");
+  const results: GenerationOutput["results"] = [];
+
+  for (let index = 0; index < count; index++) {
+    if (platform === "custom") {
+      try {
+        const { buffer, promptUsed, mimeType } = await generatePlatformImage({
+          sourceBuffer,
+          cleanBuffer,
+          mimeType: asset.mimeType,
+          platformStyle,
+          productName: asset.name,
+          description: asset.description,
+          extraPrompt: combinedExtra || undefined,
+          identity,
+          seed: seed != null ? seed + index : null,
+          approvedContext,
+        });
+        const storagePath = buildGenerationStoragePath(mimeType);
+        const { publicUrl } = await uploadToStorage(
+          storagePath,
+          buffer,
+          mimeType,
+        );
+        results.push({
+          generationId: storagePath,
+          publicUrl,
+          status: "completed",
+          promptUsed,
+        });
+      } catch (error) {
+        results.push({
+          generationId: "",
+          publicUrl: null,
+          status: "failed",
+          promptUsed: "",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      continue;
+    }
+
+    const pending = await createGenerationRecord({
+      assetId,
+      platformId: platform,
+      promptUsed: "",
+    });
+    try {
+      const { buffer, promptUsed, mimeType } = await generatePlatformImage({
+        sourceBuffer,
+        cleanBuffer,
+        mimeType: asset.mimeType,
+        platformStyle,
+        productName: asset.name,
+        description: asset.description,
+        extraPrompt: combinedExtra || undefined,
+        identity,
+        seed: seed != null ? seed + index : null,
+        approvedContext,
+      });
+      const generation = await completeGenerationRecord(pending.id, {
+        buffer,
+        mimeType,
+        promptUsed,
+      });
+      results.push({
+        generationId: generation.id,
+        publicUrl: generation.publicUrl,
+        status: "completed",
+        promptUsed,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await failGenerationRecord(pending.id, message).catch(() => {});
+      results.push({
+        generationId: pending.id,
+        publicUrl: null,
+        status: "failed",
+        promptUsed: "",
+        error: message,
+      });
+    }
+  }
+
+  return {
+    assetName: asset.name,
+    platform: platform ?? "custom",
+    count: results.length,
+    results,
+  };
+}
+
+async function executePromptGeneration(
+  input: GenerationInput & { extraPrompt: string },
+): Promise<GenerationOutput> {
+  const platform = input.platform ?? "custom";
+  const platformStyle = await resolveStyle(
+    platform,
+    input.size,
+    input.width,
+    input.height,
+  );
+  const results: GenerationOutput["results"] = [];
+
+  for (let index = 0; index < input.count; index++) {
+    try {
+      const { buffer, promptUsed, mimeType } = await generateTextImage({
+        prompt: input.extraPrompt,
+        platformStyle,
+        seed: input.seed != null ? input.seed + index : index + 1,
+      });
+      const storagePath = buildGenerationStoragePath(mimeType);
+      const { publicUrl } = await uploadToStorage(storagePath, buffer, mimeType);
+      results.push({
+        generationId: storagePath,
+        publicUrl,
+        status: "completed",
+        promptUsed,
+      });
+    } catch (error) {
+      results.push({
+        generationId: "",
+        publicUrl: null,
+        status: "failed",
+        promptUsed: "",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    assetName: "文本生成",
+    platform,
+    count: results.length,
+    results,
+  };
+}
+
+async function executeReferenceReview(input: {
+  assetId: string;
+  generationId: string;
+}) {
+  if (!isReviewAvailable()) {
+    return {
+      status: "warning" as const,
+      reviewed: false,
+      notes: "VLM review not available: GEMINI_API_KEY not configured",
+    };
+  }
+  const asset = await getAsset(input.assetId);
+  if (!asset) throw new Error(`Asset ${input.assetId} not found`);
+
+  const { getSupabaseAdmin, downloadFromStorage } = await import(
+    "../db/supabase.js"
+  );
+  const supabase = getSupabaseAdmin();
+  const { data: generation } = await supabase
+    .from("asset_generations")
+    .select("storage_path")
+    .eq("id", input.generationId)
+    .single();
+  if (!generation?.storage_path) {
+    throw new Error("Generation not found or has no image");
+  }
+
+  const [originalBuffer, generatedBuffer] = await Promise.all([
+    downloadAssetBuffer(asset),
+    downloadFromStorage(generation.storage_path),
+  ]);
+  const result = await reviewGeneratedImage({
+    originalBuffer,
+    originalMimeType: asset.mimeType,
+    generatedBuffer,
+    generatedMimeType: "image/png",
+    productName: asset.name,
+    identity: buildIdentityForPrompt(asset),
+  });
+  await updateGenerationReview(input.generationId, {
+    status: result.status,
+    notes: result.notes,
+  });
+  return result;
+}
+
 export const imageAgentTools = {
   list_product_assets: tool({
     description:
@@ -200,9 +512,9 @@ export const imageAgentTools = {
 
   generate_platform_image: tool({
     description:
-      "根据平台、尺寸、prompt 等参数为指定产品素材生成电商适配图。支持天猫、京东、Temu、Instagram或自定义尺寸。可指定生成数量（1-10）。",
+      "根据平台、尺寸、prompt 等参数生成图片。assetId 可选：有素材时图生图，无素材时根据文字直接生图。",
     inputSchema: z.object({
-      assetId: z.string().describe("产品素材 ID"),
+      assetId: z.string().optional().describe("可选的产品素材 ID"),
       platform: z
         .enum(["tmall", "jd", "temu", "instagram", "custom"])
         .optional()
@@ -218,95 +530,18 @@ export const imageAgentTools = {
       seed: z.number().optional().describe("随机种子，用于可复现生成"),
       useCleanBg: z.boolean().default(true).describe("是否优先使用去背景版本"),
     }),
-    execute: async ({ assetId, platform, width, height, size, count, extraPrompt, seed, useCleanBg }) => {
-      const asset = await getAsset(assetId);
-      if (!asset) throw new Error(`Asset ${assetId} not found`);
-
-      const platformStyle = await resolveStyle(platform, size, width, height);
-      const [sourceBuffer, cleanBuffer] = await Promise.all([
-        downloadAssetBuffer(asset),
-        useCleanBg ? downloadCleanBuffer(asset) : Promise.resolve(null),
-      ]);
-
-      const identity = buildIdentityForPrompt(asset);
-
-      let approvedContext = "";
-      try {
-        const approved = await getApprovedGenerations(assetId);
-        if (approved.length > 0) {
-          approvedContext = approved
-            .filter((g) => g.platformId !== platform)
-            .slice(0, 3)
-            .map((g) => `${g.platformId}: ${g.promptUsed.slice(0, 300)}`)
-            .join("\n");
-        }
-      } catch { /* non-blocking */ }
-
-      let brandDna = "";
-      try {
-        brandDna = await fetchBrandDnaForImageGen({
-          productName: asset.name,
-          tags: asset.tags,
-        });
-      } catch { /* non-blocking */ }
-
-      const combinedExtra = [extraPrompt, brandDna].filter(Boolean).join("\n\n");
-
-      const results: Array<{
-        generationId: string;
-        publicUrl: string | null;
-        status: string;
-        promptUsed: string;
-        error?: string;
-      }> = [];
-
-      for (let i = 0; i < count; i++) {
-        const pending = await createGenerationRecord({
-          assetId,
-          platformId: (platform ?? "custom") as any,
-          promptUsed: "",
-        });
-        try {
-          const { buffer, promptUsed, mimeType } = await generatePlatformImage({
-            sourceBuffer,
-            cleanBuffer,
-            mimeType: asset.mimeType,
-            platformStyle,
-            productName: asset.name,
-            description: asset.description,
-            extraPrompt: combinedExtra || undefined,
-            identity,
-            seed: seed != null ? seed + i : null,
-            approvedContext,
-          });
-
-          const gen = await completeGenerationRecord(pending.id, { buffer, mimeType, promptUsed });
-          results.push({
-            generationId: gen.id,
-            publicUrl: gen.publicUrl,
-            status: "completed",
-            promptUsed,
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          await failGenerationRecord(pending.id, msg).catch(() => {});
-          results.push({
-            generationId: pending.id,
-            publicUrl: null,
-            status: "failed",
-            promptUsed: "",
-            error: msg,
-          });
-        }
-      }
-
-      return {
-        assetName: asset.name,
-        platform: platform ?? "custom",
-        count: results.length,
-        results,
-      };
-    },
+    execute: async (input) =>
+      input.assetId
+        ? executeReferenceGeneration({
+            ...input,
+            assetId: input.assetId,
+          })
+        : executePromptGeneration({
+            ...input,
+            extraPrompt:
+              input.extraPrompt?.trim() ||
+              "Create a polished, professional product image.",
+          }),
   }),
 
   remove_background: tool({
@@ -344,45 +579,7 @@ export const imageAgentTools = {
       assetId: z.string().describe("原始产品素材 ID"),
       generationId: z.string().describe("要审查的生成记录 ID"),
     }),
-    execute: async ({ assetId, generationId }) => {
-      if (!isReviewAvailable()) {
-        return { status: "warning", notes: "VLM review not available: GEMINI_API_KEY not configured" };
-      }
-      const asset = await getAsset(assetId);
-      if (!asset) throw new Error(`Asset ${assetId} not found`);
-
-      const { getSupabaseAdmin } = await import("../db/supabase.js");
-      const supabase = getSupabaseAdmin();
-      const { data: genRow } = await supabase
-        .from("asset_generations")
-        .select("storage_path, public_url")
-        .eq("id", generationId)
-        .single();
-      if (!genRow?.storage_path) throw new Error("Generation not found or has no image");
-
-      const { downloadFromStorage } = await import("../db/supabase.js");
-      const [originalBuffer, generatedBuffer] = await Promise.all([
-        downloadAssetBuffer(asset),
-        downloadFromStorage(genRow.storage_path),
-      ]);
-
-      const identity = buildIdentityForPrompt(asset);
-      const result = await reviewGeneratedImage({
-        originalBuffer,
-        originalMimeType: asset.mimeType,
-        generatedBuffer,
-        generatedMimeType: "image/png",
-        productName: asset.name,
-        identity,
-      });
-
-      await updateGenerationReview(generationId, {
-        status: result.status,
-        notes: result.notes,
-      });
-
-      return result;
-    },
+    execute: executeReferenceReview,
   }),
 
   search_brand_guidelines: tool({
@@ -416,6 +613,121 @@ export interface ImageChatResult {
   }>;
 }
 
+async function runDirectGeneration(
+  latestUserText: string,
+  referencedAssetId: string | undefined,
+  sidebarParams: SidebarParams,
+): Promise<ImageChatResult> {
+  const platform = resolveRequestedPlatform(latestUserText, sidebarParams);
+  const prompt = cleanGenerationPrompt(latestUserText);
+  const generationInput: GenerationInput = {
+    assetId: referencedAssetId,
+    platform,
+    size: resolveRequestedSize(latestUserText, sidebarParams),
+    width: sidebarParams.width,
+    height: sidebarParams.height,
+    count: resolveRequestedCount(latestUserText, sidebarParams),
+    extraPrompt: prompt,
+    useCleanBg: true,
+  };
+  const generation = referencedAssetId
+    ? await executeReferenceGeneration({
+        ...generationInput,
+        assetId: referencedAssetId,
+      })
+    : await executePromptGeneration({
+        ...generationInput,
+        extraPrompt: prompt,
+      });
+
+  const toolCalls: ImageChatResult["toolCalls"] = [
+    {
+      toolName: "generate_platform_image",
+      input: generationInput,
+      output: generation,
+    },
+  ];
+  const generatedImages: ImageChatResult["generatedImages"] = [];
+  const errors: string[] = [];
+  for (const result of generation.results) {
+    if (result.status === "completed" && result.publicUrl) {
+      generatedImages.push({
+        publicUrl: result.publicUrl,
+        platform: generation.platform,
+        generationId: result.generationId,
+      });
+    } else if (result.error) {
+      errors.push(result.error);
+    }
+  }
+
+  if (generatedImages.length === 0) {
+    return {
+      response: `图片生成失败：\n${[...new Set(errors)]
+        .map((error) => `- ${error}`)
+        .join("\n") || "- Gemini 未返回图片"}`,
+      toolCalls,
+      generatedImages,
+    };
+  }
+
+  let reviewSummary = referencedAssetId
+    ? "本轮尚未执行 VLM 质检，不能宣称质检通过。"
+    : "未提供参考素材，本轮使用 Gemini 文生图；无法执行与原素材的一致性质检。";
+  if (referencedAssetId) {
+    const reviewTarget = generatedImages.find(
+      (image) => !image.generationId.startsWith("generations/"),
+    );
+    if (reviewTarget) {
+      try {
+        const review = await executeReferenceReview({
+          assetId: referencedAssetId,
+          generationId: reviewTarget.generationId,
+        });
+        toolCalls.push({
+          toolName: "review_image",
+          input: {
+            assetId: referencedAssetId,
+            generationId: reviewTarget.generationId,
+          },
+          output: review,
+        });
+        if (review.reviewed === false) {
+          reviewSummary = `VLM 质检未执行成功：${review.notes}`;
+        } else {
+          const reviewLabel =
+            review.status === "passed"
+              ? "通过"
+              : review.status === "failed"
+                ? "未通过"
+                : "存在警告";
+          reviewSummary = `VLM 质检结果：${reviewLabel}${
+            review.notes ? `（${review.notes}）` : ""
+          }`;
+        }
+      } catch (error) {
+        reviewSummary = `VLM 质检未执行成功：${
+          error instanceof Error ? error.message : String(error)
+        }`;
+      }
+    }
+  }
+
+  const partialFailure =
+    errors.length > 0
+      ? `\n另有 ${errors.length} 个生成任务失败：${[
+          ...new Set(errors),
+        ].join("；")}`
+      : "";
+  return {
+    response: `已通过 Gemini 真实生成 ${generatedImages.length} 张 ${
+      generation.platform
+    } 图片。${partialFailure}\n\n${reviewSummary}`,
+    toolCalls,
+    generatedImages,
+  };
+}
+
 export async function imageChat(
   messages: ModelMessage[],
   sidebarParams: SidebarParams = {},
@@ -427,8 +739,13 @@ export async function imageChat(
     sidebarParams,
   );
   const generationRequested = isExplicitGenerationRequest(latestUserText);
-  const mustGenerate = Boolean(referencedAssetId) && generationRequested;
-
+  if (generationRequested) {
+    return runDirectGeneration(
+      latestUserText,
+      referencedAssetId,
+      sidebarParams,
+    );
+  }
   const sidebarContext = [];
   if (sidebarParams.platform) sidebarContext.push(`预设平台: ${sidebarParams.platform}`);
   if (sidebarParams.size) sidebarContext.push(`预设尺寸: ${sidebarParams.size}`);
@@ -449,42 +766,6 @@ export async function imageChat(
     messages,
     tools: imageAgentTools,
     stopWhen: isStepCount(options.maxSteps ?? 8),
-    prepareStep: ({ stepNumber, steps }) => {
-      if (mustGenerate && stepNumber === 0) {
-        return {
-          activeTools: ["generate_platform_image"] as const,
-          toolChoice: {
-            type: "tool" as const,
-            toolName: "generate_platform_image" as const,
-          },
-        };
-      }
-      if (mustGenerate && stepNumber === 1) {
-        const hasCompletedGeneration = steps.some((step) =>
-          step.staticToolResults.some((toolResult) => {
-            if (toolResult.toolName !== "generate_platform_image") {
-              return false;
-            }
-            const output = toolResult.output as {
-              results?: Array<{ status?: string; publicUrl?: string | null }>;
-            };
-            return output.results?.some(
-              (item) => item.status === "completed" && item.publicUrl,
-            );
-          }),
-        );
-        if (hasCompletedGeneration) {
-          return {
-            activeTools: ["review_image"] as const,
-            toolChoice: {
-              type: "tool" as const,
-              toolName: "review_image" as const,
-            },
-          };
-        }
-      }
-      return undefined;
-    },
   });
 
   const toolCalls = (result.steps || []).flatMap((step) =>

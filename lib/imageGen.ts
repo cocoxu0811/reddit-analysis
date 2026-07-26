@@ -127,4 +127,69 @@ export async function generatePlatformImage(input: {
   );
 }
 
+export async function generateTextImage(input: {
+  prompt: string;
+  platformStyle: PlatformStyle;
+  seed?: number | null;
+}): Promise<{ buffer: Buffer; promptUsed: string; mimeType: string }> {
+  const client = new GoogleGenAI({ apiKey: requireGeminiKey() });
+  const variationHint =
+    input.seed == null
+      ? ""
+      : `\n\n[VARIATION]\nCreate variation ${input.seed}; keep the requested subject and composition requirements.`;
+  const promptUsed = [
+    "[TASK]",
+    "Create a new image from the user's text description. There is no reference image.",
+    "",
+    "[USER REQUEST]",
+    input.prompt.trim(),
+    "",
+    "[TARGET STYLE]",
+    input.platformStyle.promptTemplate,
+    input.platformStyle.negativeHints
+      ? `\n[AVOID]\n${input.platformStyle.negativeHints}`
+      : "",
+    variationHint,
+    "",
+    "Return a newly generated image only, not a textual description.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const model =
+    process.env.GEMINI_IMAGE_MODEL?.trim() || "gemini-3.1-flash-image";
+  const response = await client.models.generateContent({
+    model,
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: promptUsed }],
+      },
+    ],
+    config: {
+      responseModalities: ["IMAGE"],
+      imageConfig: {
+        aspectRatio: resolveAspectRatio(input.platformStyle),
+        imageSize: process.env.GEMINI_IMAGE_SIZE?.trim() || "1K",
+      },
+    },
+  });
+
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  for (const part of parts) {
+    if (part.inlineData?.data) {
+      return {
+        buffer: Buffer.from(part.inlineData.data, "base64"),
+        promptUsed,
+        mimeType: part.inlineData.mimeType || "image/png",
+      };
+    }
+  }
+
+  const reason = response.candidates?.[0]?.finishReason;
+  throw new Error(
+    `Gemini did not return an image${reason ? ` (finish reason: ${reason})` : ""}`,
+  );
+}
+
 export type { PlatformId };
