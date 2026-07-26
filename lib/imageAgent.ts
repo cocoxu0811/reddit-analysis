@@ -65,6 +65,7 @@ const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计�
 ## 重要原则
 - 产品形状、颜色、品牌元素必须保持准确
 - 如果用户要求批量生成（count > 1），每次都使用相同的产品身份信息
+- 每一次“生成/再生成/换平台”请求都必须在当前轮调用 generate_platform_image；禁止复用历史图片链接冒充新结果
 - 如果工具返回失败，必须原样说明工具返回的具体错误；禁止猜测或虚构“计费限制”等原因
 - 如果 review_image 返回 reviewed=false，必须说明“质检未执行成功”，不得把 null 或兜底字段描述为通过
 - 用中文回复用户，除非用户用英文提问`;
@@ -76,7 +77,50 @@ export type SidebarParams = {
   height?: number;
   count?: number;
   quality?: string;
+  selectedAssetId?: string;
 };
+
+function getMessageText(message: ModelMessage | undefined): string {
+  if (!message) return "";
+  if (typeof message.content === "string") return message.content;
+  if (!Array.isArray(message.content)) return "";
+  return message.content
+    .map((part) =>
+      typeof part === "object" &&
+      part !== null &&
+      "type" in part &&
+      part.type === "text" &&
+      "text" in part
+        ? String(part.text)
+        : "",
+    )
+    .join("\n");
+}
+
+function getLatestUserText(messages: ModelMessage[]): string {
+  return getMessageText(
+    [...messages].reverse().find((message) => message.role === "user"),
+  );
+}
+
+function isExplicitGenerationRequest(text: string): boolean {
+  if (/(?:不要|别|停止|取消).{0,8}(?:生成|生图|主图|图片)/i.test(text)) {
+    return false;
+  }
+  return /生成|生图|主图|适配图|生活方式图|再来一张|再生成|\b(?:generate|create|render|make)\b/i.test(
+    text,
+  );
+}
+
+function getReferencedAssetId(
+  text: string,
+  sidebarParams: SidebarParams,
+): string | undefined {
+  return (
+    sidebarParams.selectedAssetId?.trim() ||
+    text.match(/\[参考素材ID:\s*([^\]\s]+)\]/)?.[1]
+  );
+}
 
 async function resolveStyle(
   platform?: string,
@@ -377,12 +421,23 @@ export async function imageChat(
   sidebarParams: SidebarParams = {},
   options: { maxSteps?: number } = {},
 ): Promise<ImageChatResult> {
+  const latestUserText = getLatestUserText(messages);
+  const referencedAssetId = getReferencedAssetId(
+    latestUserText,
+    sidebarParams,
+  );
+  const generationRequested = isExplicitGenerationRequest(latestUserText);
+  const mustGenerate = Boolean(referencedAssetId) && generationRequested;
+
   const sidebarContext = [];
   if (sidebarParams.platform) sidebarContext.push(`预设平台: ${sidebarParams.platform}`);
   if (sidebarParams.size) sidebarContext.push(`预设尺寸: ${sidebarParams.size}`);
   if (sidebarParams.width && sidebarParams.height) sidebarContext.push(`预设宽高: ${sidebarParams.width}x${sidebarParams.height}`);
   if (sidebarParams.count) sidebarContext.push(`预设数量: ${sidebarParams.count}`);
   if (sidebarParams.quality) sidebarContext.push(`预设质量: ${sidebarParams.quality}`);
+  if (referencedAssetId) {
+    sidebarContext.push(`当前选中的产品素材 ID: ${referencedAssetId}`);
+  }
 
   const systemWithParams = sidebarContext.length > 0
     ? `${IMAGE_AGENT_SYSTEM_PROMPT}\n\n## 用户侧栏预设参数\n${sidebarContext.join("\n")}\n（仅在用户消息中未明确指定时使用这些预设值）`
@@ -394,6 +449,42 @@ export async function imageChat(
     messages,
     tools: imageAgentTools,
     stopWhen: isStepCount(options.maxSteps ?? 8),
+    prepareStep: ({ stepNumber, steps }) => {
+      if (mustGenerate && stepNumber === 0) {
+        return {
+          activeTools: ["generate_platform_image"] as const,
+          toolChoice: {
+            type: "tool" as const,
+            toolName: "generate_platform_image" as const,
+          },
+        };
+      }
+      if (mustGenerate && stepNumber === 1) {
+        const hasCompletedGeneration = steps.some((step) =>
+          step.staticToolResults.some((toolResult) => {
+            if (toolResult.toolName !== "generate_platform_image") {
+              return false;
+            }
+            const output = toolResult.output as {
+              results?: Array<{ status?: string; publicUrl?: string | null }>;
+            };
+            return output.results?.some(
+              (item) => item.status === "completed" && item.publicUrl,
+            );
+          }),
+        );
+        if (hasCompletedGeneration) {
+          return {
+            activeTools: ["review_image"] as const,
+            toolChoice: {
+              type: "tool" as const,
+              toolName: "review_image" as const,
+            },
+          };
+        }
+      }
+      return undefined;
+    },
   });
 
   const toolCalls = (result.steps || []).flatMap((step) =>
@@ -406,8 +497,15 @@ export async function imageChat(
 
   const generatedImages: ImageChatResult["generatedImages"] = [];
   const generationErrors: string[] = [];
+  const reviewResults: Array<{
+    reviewed?: boolean;
+    status?: string;
+    notes?: string;
+  }> = [];
+  let generationAttempted = false;
   for (const tc of toolCalls) {
     if (tc.toolName === "generate_platform_image" && tc.output) {
+      generationAttempted = true;
       const out = tc.output as {
         results?: Array<{
           publicUrl?: string | null;
@@ -428,15 +526,52 @@ export async function imageChat(
           generationErrors.push(r.error);
         }
       }
+    } else if (tc.toolName === "review_image" && tc.output) {
+      reviewResults.push(
+        tc.output as {
+          reviewed?: boolean;
+          status?: string;
+          notes?: string;
+        },
+      );
     }
   }
 
   const uniqueErrors = [...new Set(generationErrors)];
   let response = stripModelThinking(result.text);
-  if (uniqueErrors.length > 0 && generatedImages.length === 0) {
+  if (generationRequested && !generationAttempted) {
+    response = referencedAssetId
+      ? "本轮未执行图片生成工具，因此没有产生新图片。请重试。"
+      : "本轮没有产生新图片。请先选择产品素材，再提交生成请求。";
+  } else if (uniqueErrors.length > 0 && generatedImages.length === 0) {
     response = `图片生成失败：\n${uniqueErrors.map((error) => `- ${error}`).join("\n")}`;
-  } else if (uniqueErrors.length > 0) {
-    response = `${response}\n\n部分图片生成失败：\n${uniqueErrors.map((error) => `- ${error}`).join("\n")}`;
+  } else if (generatedImages.length > 0) {
+    const platforms = [...new Set(generatedImages.map((image) => image.platform))];
+    const latestReview = reviewResults.at(-1);
+    const generationSummary = [
+      `已真实生成 ${generatedImages.length} 张 ${platforms.join("、")} 图片。`,
+      uniqueErrors.length > 0
+        ? `另有 ${uniqueErrors.length} 个生成任务失败：${uniqueErrors.join("；")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    if (!latestReview) {
+      response = `${generationSummary}\n\n本轮尚未执行 VLM 质检，不能宣称质检通过。`;
+    } else if (latestReview.reviewed === false) {
+      response = `${generationSummary}\n\nVLM 质检未执行成功：${latestReview.notes || "未知错误"}`;
+    } else {
+      const reviewLabel =
+        latestReview.status === "passed"
+          ? "通过"
+          : latestReview.status === "failed"
+            ? "未通过"
+            : "存在警告";
+      response = `${generationSummary}\n\nVLM 质检结果：${reviewLabel}${
+        latestReview.notes ? `（${latestReview.notes}）` : ""
+      }`;
+    }
   }
 
   return {

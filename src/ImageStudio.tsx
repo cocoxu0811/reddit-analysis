@@ -228,6 +228,7 @@ export function ImageStudio({ language }: Props) {
     }
     if (count > 1) sidebarParams.count = count;
     if (quality !== 'auto') sidebarParams.quality = quality;
+    if (selectedAssetId) sidebarParams.selectedAssetId = selectedAssetId;
 
     try {
       const res = await fetch('/api/image-agent/chat', {
