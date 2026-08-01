@@ -50,7 +50,7 @@ const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计�
 3. **风格变换与批量生成**：根据不同平台需求批量处理
 4. **基于参考图保持一致性**：利用已采纳的生成结果保持跨平台视觉统一
 
-生图路由：无论是否有参考素材，优先使用 MiniMax image-01 生图（有素材时带 subject_reference）。
+生图路由：无论是否有参考素材，优先使用 Gemini 图片模型生图；仅当显式配置 IMAGE_*_PROVIDER=minimax 时改走 MiniMax。
 
 ## 工作方式
 - 你通过调用工具来执行具体任务，不自己编造图片

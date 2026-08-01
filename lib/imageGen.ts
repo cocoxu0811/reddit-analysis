@@ -65,28 +65,26 @@ function resolveAspectRatio(style: PlatformStyle): string {
 
 function resolveTextImageProvider(): ImageGenProvider {
   const preferred = process.env.IMAGE_TEXT_PROVIDER?.trim().toLowerCase();
-  if (preferred === "gemini") return "gemini";
   if (preferred === "minimax") {
     if (!isMiniMaxImageAvailable()) {
       throw new Error("IMAGE_TEXT_PROVIDER=minimax but MINIMAX_API_KEY is missing");
     }
     return "minimax";
   }
-  // Default: MiniMax image-01 when available, otherwise Gemini.
-  return isMiniMaxImageAvailable() ? "minimax" : "gemini";
+  // Default: Gemini for product-quality generation.
+  return "gemini";
 }
 
 function resolveI2IProvider(): ImageGenProvider {
   const preferred = process.env.IMAGE_I2I_PROVIDER?.trim().toLowerCase();
-  if (preferred === "gemini") return "gemini";
   if (preferred === "minimax") {
     if (!isMiniMaxImageAvailable()) {
       throw new Error("IMAGE_I2I_PROVIDER=minimax but MINIMAX_API_KEY is missing");
     }
     return "minimax";
   }
-  // Default: MiniMax image-01 for both T2I and I2I when available.
-  return isMiniMaxImageAvailable() ? "minimax" : "gemini";
+  // Default: Gemini for product image-to-image fidelity.
+  return "gemini";
 }
 
 function applySkillDirectives(
