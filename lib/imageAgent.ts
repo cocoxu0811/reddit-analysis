@@ -50,6 +50,8 @@ const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计�
 3. **风格变换与批量生成**：根据不同平台需求批量处理
 4. **基于参考图保持一致性**：利用已采纳的生成结果保持跨平台视觉统一
 
+生图路由：无参考素材时优先使用 MiniMax image-01 文生图；有产品素材时优先使用 Gemini 做产品图生图。
+
 ## 工作方式
 - 你通过调用工具来执行具体任务，不自己编造图片
 - 用户可能在侧栏预设了参数（平台、尺寸、数量、质量），如果用户消息中明确指定，以消息为准；否则使用侧栏预设值
@@ -197,12 +199,16 @@ type GenerationOutput = {
   assetName: string;
   platform: GenerationPlatform;
   count: number;
+  provider?: "minimax" | "gemini";
+  model?: string;
   results: Array<{
     generationId: string;
     publicUrl: string | null;
     status: string;
     promptUsed: string;
     error?: string;
+    provider?: "minimax" | "gemini";
+    model?: string;
   }>;
 };
 
@@ -308,7 +314,7 @@ async function executeReferenceGeneration(
   for (let index = 0; index < count; index++) {
     if (platform === "custom") {
       try {
-        const { buffer, promptUsed, mimeType } = await generatePlatformImage({
+        const generated = await generatePlatformImage({
           sourceBuffer,
           cleanBuffer,
           mimeType: asset.mimeType,
@@ -320,17 +326,19 @@ async function executeReferenceGeneration(
           seed: seed != null ? seed + index : null,
           approvedContext,
         });
-        const storagePath = buildGenerationStoragePath(mimeType);
+        const storagePath = buildGenerationStoragePath(generated.mimeType);
         const { publicUrl } = await uploadToStorage(
           storagePath,
-          buffer,
-          mimeType,
+          generated.buffer,
+          generated.mimeType,
         );
         results.push({
           generationId: storagePath,
           publicUrl,
           status: "completed",
-          promptUsed,
+          promptUsed: generated.promptUsed,
+          provider: generated.provider,
+          model: generated.model,
         });
       } catch (error) {
         results.push({
@@ -350,7 +358,7 @@ async function executeReferenceGeneration(
       promptUsed: "",
     });
     try {
-      const { buffer, promptUsed, mimeType } = await generatePlatformImage({
+      const generated = await generatePlatformImage({
         sourceBuffer,
         cleanBuffer,
         mimeType: asset.mimeType,
@@ -363,15 +371,17 @@ async function executeReferenceGeneration(
         approvedContext,
       });
       const generation = await completeGenerationRecord(pending.id, {
-        buffer,
-        mimeType,
-        promptUsed,
+        buffer: generated.buffer,
+        mimeType: generated.mimeType,
+        promptUsed: generated.promptUsed,
       });
       results.push({
         generationId: generation.id,
         publicUrl: generation.publicUrl,
         status: "completed",
-        promptUsed,
+        promptUsed: generated.promptUsed,
+        provider: generated.provider,
+        model: generated.model,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -386,10 +396,13 @@ async function executeReferenceGeneration(
     }
   }
 
+  const firstSuccess = results.find((item) => item.status === "completed");
   return {
     assetName: asset.name,
     platform: platform ?? "custom",
     count: results.length,
+    provider: firstSuccess?.provider,
+    model: firstSuccess?.model,
     results,
   };
 }
@@ -408,18 +421,24 @@ async function executePromptGeneration(
 
   for (let index = 0; index < input.count; index++) {
     try {
-      const { buffer, promptUsed, mimeType } = await generateTextImage({
+      const generated = await generateTextImage({
         prompt: input.extraPrompt,
         platformStyle,
         seed: input.seed != null ? input.seed + index : index + 1,
       });
-      const storagePath = buildGenerationStoragePath(mimeType);
-      const { publicUrl } = await uploadToStorage(storagePath, buffer, mimeType);
+      const storagePath = buildGenerationStoragePath(generated.mimeType);
+      const { publicUrl } = await uploadToStorage(
+        storagePath,
+        generated.buffer,
+        generated.mimeType,
+      );
       results.push({
         generationId: storagePath,
         publicUrl,
         status: "completed",
-        promptUsed,
+        promptUsed: generated.promptUsed,
+        provider: generated.provider,
+        model: generated.model,
       });
     } catch (error) {
       results.push({
@@ -432,10 +451,13 @@ async function executePromptGeneration(
     }
   }
 
+  const firstSuccess = results.find((item) => item.status === "completed");
   return {
     assetName: "文本生成",
     platform,
     count: results.length,
+    provider: firstSuccess?.provider,
+    model: firstSuccess?.model,
     results,
   };
 }
@@ -671,9 +693,16 @@ async function runDirectGeneration(
     };
   }
 
+  const providerLabel =
+    generation.provider === "minimax"
+      ? `MiniMax ${generation.model || "image-01"}`
+      : generation.provider === "gemini"
+        ? `Gemini ${generation.model || "image"}`
+        : "当前生图模型";
+
   let reviewSummary = referencedAssetId
     ? "本轮尚未执行 VLM 质检，不能宣称质检通过。"
-    : "未提供参考素材，本轮使用 Gemini 文生图；无法执行与原素材的一致性质检。";
+    : `未提供参考素材，本轮使用 ${providerLabel} 文生图；无法执行与原素材的一致性质检。`;
   if (referencedAssetId) {
     const reviewTarget = generatedImages.find(
       (image) => !image.generationId.startsWith("generations/"),
@@ -720,7 +749,7 @@ async function runDirectGeneration(
         ].join("；")}`
       : "";
   return {
-    response: `已通过 Gemini 真实生成 ${generatedImages.length} 张 ${
+    response: `已通过 ${providerLabel} 真实生成 ${generatedImages.length} 张 ${
       generation.platform
     } 图片。${partialFailure}\n\n${reviewSummary}`,
     toolCalls,
