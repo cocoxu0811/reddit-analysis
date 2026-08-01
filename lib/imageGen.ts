@@ -78,14 +78,15 @@ function resolveTextImageProvider(): ImageGenProvider {
 
 function resolveI2IProvider(): ImageGenProvider {
   const preferred = process.env.IMAGE_I2I_PROVIDER?.trim().toLowerCase();
+  if (preferred === "gemini") return "gemini";
   if (preferred === "minimax") {
     if (!isMiniMaxImageAvailable()) {
       throw new Error("IMAGE_I2I_PROVIDER=minimax but MINIMAX_API_KEY is missing");
     }
     return "minimax";
   }
-  // Product ecommerce consistency: Gemini by default.
-  return "gemini";
+  // Default: MiniMax image-01 for both T2I and I2I when available.
+  return isMiniMaxImageAvailable() ? "minimax" : "gemini";
 }
 
 function applySkillDirectives(
