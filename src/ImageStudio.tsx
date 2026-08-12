@@ -350,7 +350,7 @@ export function ImageStudio({ language }: Props) {
 
       <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: sidebarOpen ? '220px minmax(0,1fr) 300px' : 'minmax(0,1fr) 300px' }}>
         {sidebarOpen && (
-          <div className="border-r border-[var(--ym-input-border)] overflow-y-auto p-3 space-y-4 bg-[#0c0e12]">
+          <div className="border-r border-[var(--ym-input-border)] overflow-y-auto p-3 space-y-4 bg-[#fbfbfc]">
               <div>
                 <label className="block text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-2">{t.platformLabel}</label>
                 <div className="space-y-1">
@@ -504,7 +504,7 @@ export function ImageStudio({ language }: Props) {
                     {msg.referenceAsset && (
                       <button
                         type="button"
-                        className="mb-2 flex w-full items-center gap-2 rounded-[10px] bg-white/5 p-2 text-left hover:bg-white/10"
+                        className="mb-2 flex w-full items-center gap-2 rounded-[10px] bg-black/5 p-2 text-left hover:bg-black/8"
                         onClick={() => window.open(msg.referenceAsset?.publicUrl, '_blank')}
                       >
                         <img
@@ -566,7 +566,7 @@ export function ImageStudio({ language }: Props) {
           </div>
         </div>
 
-        <aside className="min-h-0 overflow-y-auto bg-[#0c0e12] p-3">
+        <aside className="min-h-0 overflow-y-auto bg-[#fbfbfc] p-3">
           <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-3">
             Artifacts
           </div>
@@ -622,7 +622,7 @@ export function ImageStudio({ language }: Props) {
                     type="button"
                     className={`rounded-[12px] border p-2 transition-colors ${
                       selectedAssetId === asset.id
-                        ? 'border-[var(--ym-primary)] bg-white/5'
+                        ? 'border-[var(--ym-primary)] bg-black/5'
                         : 'border-transparent hover:border-[var(--ym-input-border)]'
                     }`}
                     onClick={() => {

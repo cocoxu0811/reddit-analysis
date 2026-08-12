@@ -6,39 +6,39 @@
 */
 
 @theme {
-  --color-reddit-50: #f4f4f5;
-  --color-reddit-100: #e4e4e7;
-  --color-reddit-200: #d4d4d8;
-  --color-reddit-300: #a1a1aa;
-  --color-reddit-400: #71717a;
-  --color-reddit-500: #52525b;
-  --color-reddit-600: #3f3f46;
-  --color-reddit-700: #27272a;
-  --color-reddit-800: #18181b;
-  --color-reddit-900: #121214;
-  --color-reddit-950: #0a0a0b;
+  --color-reddit-50: #fafafa;
+  --color-reddit-100: #f4f4f5;
+  --color-reddit-200: #e4e4e7;
+  --color-reddit-300: #d4d4d8;
+  --color-reddit-400: #a1a1aa;
+  --color-reddit-500: #71717a;
+  --color-reddit-600: #52525b;
+  --color-reddit-700: #3f3f46;
+  --color-reddit-800: #27272a;
+  --color-reddit-900: #18181b;
+  --color-reddit-950: #09090b;
 
-  --color-insta-50: #f4f4f5;
-  --color-insta-100: #e4e4e7;
-  --color-insta-200: #d4d4d8;
-  --color-insta-300: #a1a1aa;
-  --color-insta-400: #71717a;
-  --color-insta-500: #52525b;
-  --color-insta-600: #3f3f46;
-  --color-insta-700: #27272a;
-  --color-insta-800: #18181b;
-  --color-insta-900: #121214;
-  --color-insta-950: #0a0a0b;
+  --color-insta-50: #fafafa;
+  --color-insta-100: #f4f4f5;
+  --color-insta-200: #e4e4e7;
+  --color-insta-300: #d4d4d8;
+  --color-insta-400: #a1a1aa;
+  --color-insta-500: #71717a;
+  --color-insta-600: #52525b;
+  --color-insta-700: #3f3f46;
+  --color-insta-800: #27272a;
+  --color-insta-900: #18181b;
+  --color-insta-950: #09090b;
 
-  --color-ym-bg: #0f1115;
-  --color-ym-surface: #161a22;
-  --color-ym-fg: rgba(245, 245, 247, 0.92);
-  --color-ym-muted: rgba(245, 245, 247, 0.58);
-  --color-ym-caption: rgba(245, 245, 247, 0.4);
-  --color-ym-primary: #e8eaef;
-  --color-ym-border: rgba(255, 255, 255, 0.1);
-  --color-ym-input-border: rgba(255, 255, 255, 0.08);
-  --color-ym-destructive: #ff6b61;
+  --color-ym-bg: #f5f6f8;
+  --color-ym-surface: #ffffff;
+  --color-ym-fg: rgba(17, 24, 39, 0.92);
+  --color-ym-muted: rgba(17, 24, 39, 0.58);
+  --color-ym-caption: rgba(17, 24, 39, 0.4);
+  --color-ym-primary: #1c2430;
+  --color-ym-border: rgba(15, 23, 42, 0.12);
+  --color-ym-input-border: rgba(15, 23, 42, 0.1);
+  --color-ym-destructive: #e5484d;
 
   --radius-ym-sm: 6px;
   --radius-ym-md: 8px;
@@ -48,34 +48,35 @@
 }
 
 :root {
-  --ym-background: #0f1115;
-  --ym-surface: #161a22;
-  --ym-foreground: rgba(245, 245, 247, 0.92);
-  --ym-muted-foreground: rgba(245, 245, 247, 0.58);
-  --ym-caption: rgba(245, 245, 247, 0.4);
-  --ym-disabled: rgba(245, 245, 247, 0.24);
-  --ym-primary: #e8eaef;
-  --ym-primary-foreground: #0f1115;
-  --ym-secondary: #8b93a7;
-  --ym-muted: rgba(255, 255, 255, 0.06);
-  --ym-border: rgba(255, 255, 255, 0.1);
-  --ym-input-border: rgba(255, 255, 255, 0.08);
-  --ym-subtle-border: rgba(255, 255, 255, 0.06);
-  --ym-card: #161a22;
-  --ym-board-card: #12151c;
-  --ym-snip-card: rgba(255, 255, 255, 0.04);
-  --ym-destructive: #ff6b61;
-  --ym-gray0: #e8eaef;
-  --ym-gray1: #a8b0c0;
-  --ym-gray2: #7b8499;
-  --ym-gray3: #4d5568;
-  --ym-gray4: #2a3140;
+  color-scheme: light;
+  --ym-background: #f5f6f8;
+  --ym-surface: #ffffff;
+  --ym-foreground: rgba(17, 24, 39, 0.92);
+  --ym-muted-foreground: rgba(17, 24, 39, 0.58);
+  --ym-caption: rgba(17, 24, 39, 0.4);
+  --ym-disabled: rgba(17, 24, 39, 0.24);
+  --ym-primary: #1c2430;
+  --ym-primary-foreground: #f8fafc;
+  --ym-secondary: #64748b;
+  --ym-muted: rgba(15, 23, 42, 0.05);
+  --ym-border: rgba(15, 23, 42, 0.12);
+  --ym-input-border: rgba(15, 23, 42, 0.1);
+  --ym-subtle-border: rgba(15, 23, 42, 0.07);
+  --ym-card: #ffffff;
+  --ym-board-card: #eef0f4;
+  --ym-snip-card: rgba(15, 23, 42, 0.04);
+  --ym-destructive: #e5484d;
+  --ym-gray0: #1c2430;
+  --ym-gray1: #475569;
+  --ym-gray2: #64748b;
+  --ym-gray3: #94a3b8;
+  --ym-gray4: #e2e8f0;
   --ym-radius: 6px;
   --ym-radius-input: 10px;
   --ym-radius-card: 12px;
   --ym-radius-prompt: 14px;
   --ym-radius-pill: 999px;
-  --ym-shadow-prompt: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --ym-shadow-prompt: 0 8px 24px rgba(15, 23, 42, 0.08);
   --ym-font-ui: 'IBM Plex Sans', ui-sans-serif, sans-serif;
   --ym-font-display: 'IBM Plex Sans', ui-sans-serif, sans-serif;
   --ym-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
@@ -94,15 +95,15 @@
   --md-sys-color-on-tertiary-container: var(--ym-gray0);
   --md-sys-color-error: var(--ym-destructive);
   --md-sys-color-on-error: #ffffff;
-  --md-sys-color-error-container: #5c1d18;
-  --md-sys-color-on-error-container: #ffdad6;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
   --md-sys-color-surface: var(--ym-background);
   --md-sys-color-on-surface: var(--ym-foreground);
   --md-sys-color-on-surface-variant: var(--ym-muted-foreground);
   --md-sys-color-surface-container-lowest: var(--ym-surface);
   --md-sys-color-surface-container-low: var(--ym-background);
   --md-sys-color-surface-container: var(--ym-board-card);
-  --md-sys-color-surface-container-high: #1c212b;
+  --md-sys-color-surface-container-high: #e8ebf0;
   --md-sys-color-surface-container-highest: var(--ym-gray4);
   --md-sys-color-outline: var(--ym-gray2);
   --md-sys-color-outline-variant: var(--ym-input-border);
@@ -123,12 +124,12 @@ body {
 .ym-task-bg {
   background-color: var(--ym-background);
   background-image:
-    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(70, 90, 140, 0.18) 0%, transparent 55%),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(40, 80, 70, 0.12) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(180, 205, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(190, 235, 220, 0.28) 0%, transparent 50%);
 }
 
 .ym-header {
-  background: rgba(15, 17, 21, 0.9);
+  background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--ym-input-border);
@@ -142,7 +143,7 @@ body {
   max-width: 42rem;
   margin: 0 auto;
   padding: 0.5rem 0.5rem 0.5rem 1.25rem;
-  background: rgba(22, 26, 34, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--ym-input-border);
@@ -234,12 +235,12 @@ body {
 }
 
 .ym-mode-tab:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(15, 23, 42, 0.05);
   color: var(--ym-foreground);
 }
 
 .ym-mode-tab-active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.08);
   color: var(--ym-foreground);
   box-shadow: none;
 }
@@ -594,13 +595,13 @@ body {
   cursor: pointer;
 }
 .ym-nav-item:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(15, 23, 42, 0.05);
   color: var(--ym-foreground);
 }
 .ym-nav-item-active {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: #ffffff;
-  color: rgba(31, 31, 31, 0.88);
+  background: rgba(15, 23, 42, 0.08);
+  border-color: var(--ym-input-border);
+  color: var(--ym-foreground);
   font-weight: 500;
 }
 
@@ -645,11 +646,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.14);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.24);
 }
 
 /* ══════════ Codex workspace chrome ══════════ */
@@ -679,7 +680,7 @@ body {
 
 .codex-rail {
   border-right: 1px solid var(--ym-input-border);
-  background: #0c0e12;
+  background: #fbfbfc;
   padding: 0.85rem 0.65rem;
   overflow-y: auto;
   display: flex;
@@ -697,8 +698,8 @@ body {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 7px;
-  background: linear-gradient(145deg, #dfe5f2, #8b95ab);
-  color: #0f1115;
+  background: linear-gradient(145deg, #1c2430, #4b5870);
+  color: #f8fafc;
   display: grid;
   place-items: center;
   font-family: var(--ym-font-mono);
@@ -748,12 +749,12 @@ body {
 }
 
 .codex-rail-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(15, 23, 42, 0.05);
   color: var(--ym-foreground);
 }
 
 .codex-rail-item.is-active {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.08);
   color: var(--ym-foreground);
 }
 
@@ -798,7 +799,7 @@ body {
   gap: 1rem;
   padding: 0.85rem 1.25rem;
   border-bottom: 1px solid var(--ym-input-border);
-  background: rgba(15, 17, 21, 0.72);
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .codex-main-title {
@@ -821,7 +822,7 @@ body {
 
 .codex-artifacts {
   border-left: 1px solid var(--ym-input-border);
-  background: #0c0e12;
+  background: #fbfbfc;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -878,7 +879,7 @@ body {
 }
 
 .codex-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(15, 23, 42, 0.05);
   color: var(--ym-foreground);
 }
 
@@ -890,7 +891,7 @@ body {
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--ym-input-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(15, 23, 42, 0.03);
   font-size: 0.78rem;
 }
 
@@ -940,7 +941,7 @@ body {
 .codex-composer {
   border-top: 1px solid var(--ym-input-border);
   padding: 0.85rem 1rem 1rem;
-  background: rgba(12, 14, 18, 0.92);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .codex-composer-box {
@@ -985,7 +986,7 @@ body {
 
 .codex-msg-user .codex-msg-bubble {
   margin-left: auto;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.06);
   border: 1px solid var(--ym-input-border);
   color: var(--ym-foreground);
 }
