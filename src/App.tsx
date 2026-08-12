@@ -4,6 +4,11 @@ import { CompetitiveIgCalendar } from './CompetitiveIgCalendar';
 import { AssetLibrary } from './AssetLibrary';
 import { ImageStudio } from './ImageStudio';
 import { KnowledgeLibrary } from './KnowledgeLibrary';
+import {
+  CodexRailItem,
+  CodexRailSection,
+  CodexWorkspace,
+} from './codex/CodexWorkspace';
 import { buildInstagramSocialDashboard, weekdayLabel } from './socialDashboard';
 import {
   Upload,
@@ -698,7 +703,7 @@ export default function App() {
   const [language, setLanguage] = useState<'en' | 'zh'>('zh');
   const [activePage, setActivePage] = useState<
     'analyze' | 'history' | 'content' | 'monitor' | 'competitive' | 'social' | 'assets' | 'image-studio' | 'knowledge'
-  >('analyze');
+  >('image-studio');
   const [inputText, setInputText] = useState('');
   const [redditUrl, setRedditUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -784,14 +789,19 @@ export default function App() {
     const n = new Date();
     return { y: n.getFullYear(), m: n.getMonth() };
   });
+  const [artifactsOpen, setArtifactsOpen] = useState(true);
 
   const t = translations[language];
+
+  const agentNavItems = [
+    { id: 'image-studio' as const, icon: Sparkles, label: t.navImageStudio },
+    { id: 'content' as const, icon: PenSquare, label: t.navContent },
+  ];
 
   const redditNavItems = [
     { id: 'monitor' as const, icon: Rss, label: t.navMonitor },
     { id: 'analyze' as const, icon: LayoutTemplate, label: t.navAnalyze },
     { id: 'history' as const, icon: History, label: t.navHistory },
-    { id: 'content' as const, icon: PenSquare, label: t.navContent },
   ];
 
   const instagramNavItems = [
@@ -799,11 +809,17 @@ export default function App() {
     { id: 'social' as const, icon: LayoutDashboard, label: t.navSocial },
   ];
 
-  const assetNavItems = [
+  const libraryNavItems = [
     { id: 'assets' as const, icon: Images, label: t.navAssets },
-    { id: 'image-studio' as const, icon: Sparkles, label: t.navImageStudio },
     { id: 'knowledge' as const, icon: BookOpen, label: t.navKnowledge },
   ];
+
+  const isAgentPage = activePage === 'image-studio' || activePage === 'content';
+  const showArtifactsPanel =
+    activePage === 'image-studio' ||
+    activePage === 'content' ||
+    activePage === 'analyze' ||
+    activePage === 'history';
 
   const pageHero = {
     monitor: { title: t.taskHeroMonitor, subtitle: t.taskHeroMonitorSub },
@@ -1648,106 +1664,159 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen ym-task-bg text-[var(--ym-foreground)] font-sans flex flex-col overflow-hidden">
+    <div className="h-screen overflow-hidden">
       <Toaster position="top-right" />
-      
-      <header className="ym-header shrink-0">
-        <div className="w-full px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[var(--ym-primary)] rounded-[10px] flex items-center justify-center">
-              <Database className="w-4 h-4 text-[var(--ym-primary-foreground)]" />
+
+      <CodexWorkspace
+        artifactsOpen={artifactsOpen && showArtifactsPanel && activePage !== 'image-studio'}
+        onToggleArtifacts={
+          showArtifactsPanel && activePage !== 'image-studio'
+            ? () => setArtifactsOpen((v) => !v)
+            : undefined
+        }
+        artifactsTitle={language === 'zh' ? '产物' : 'Artifacts'}
+        artifacts={
+          activePage === 'image-studio' ? null : (
+            <div className="space-y-3">
+              {activePage === 'content' && contentIdeas.length > 0 ? (
+                contentIdeas.slice(0, 6).map((idea, idx) => (
+                  <div key={idx} className="ym-card p-3 space-y-1.5">
+                    <div className="text-xs font-medium text-[var(--ym-foreground)] line-clamp-2">
+                      {idea.content.postTitle || idea.title}
+                    </div>
+                    <div className="text-[11px] text-[var(--ym-caption)] line-clamp-3">
+                      {idea.content.postBody || idea.angle}
+                    </div>
+                  </div>
+                ))
+              ) : activePage === 'content' ? (
+                <div className="text-xs text-[var(--ym-caption)]">
+                  {language === 'zh' ? '生成内容后会显示在这里。' : 'Generated drafts appear here.'}
+                </div>
+              ) : report ? (
+                <div className="ym-card p-3 space-y-2">
+                  <div className="text-xs font-medium">{language === 'zh' ? '分析摘要' : 'Report summary'}</div>
+                  <p className="text-[11px] text-[var(--ym-muted-foreground)] leading-relaxed line-clamp-8">
+                    {report.summary}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-xs text-[var(--ym-caption)]">
+                  {language === 'zh' ? '暂无产物。' : 'No artifacts yet.'}
+                </div>
+              )}
             </div>
-            <h1 className="font-display text-lg font-medium tracking-tight text-[var(--ym-foreground)]">{t.title}</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--ym-muted-foreground)] bg-[var(--ym-muted)] border border-[var(--ym-input-border)] rounded-full transition-colors hover:bg-[var(--ym-gray4)]">
-              <span className="text-xs">{t.aiProviderLabel}</span>
-              <select
-                value={aiProvider}
-                onChange={(e) => setAiProvider(e.target.value as AiProvider)}
-                className="bg-transparent text-sm text-[var(--ym-foreground)] focus:outline-none cursor-pointer"
-              >
-                <option value="gemini">{t.aiProviderGemini}</option>
-                <option value="minimax">{t.aiProviderMinimax}</option>
-              </select>
-            </label>
-            <button 
-              onClick={() => setLanguage(lang => lang === 'en' ? 'zh' : 'en')}
-              className="ym-btn-ghost"
-            >
-              <Languages className="w-4 h-4" />
-              {language === 'en' ? '中' : 'EN'}
-            </button>
-            <button 
-              onClick={() => setShowSettings(true)}
-              className="ym-btn-ghost p-2.5"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </header>
+          )
+        }
+        rail={
+          <>
+            <div className="codex-rail-brand">
+              <div className="codex-rail-brand-mark">RA</div>
+              <div className="codex-rail-brand-name">{t.title}</div>
+            </div>
 
-      <main className="flex-1 flex overflow-hidden">
-        <aside className="w-72 shrink-0 border-r border-[var(--ym-input-border)] bg-[rgba(255,255,255,0.35)] backdrop-blur-md p-4 overflow-y-auto">
-          <div className="ym-sidebar-hero">
-            <h2 className="ym-sidebar-title">{pageHero.title}</h2>
-            <p className="ym-sidebar-subtitle">{pageHero.subtitle}</p>
-          </div>
-
-          <nav className="space-y-6" aria-label="Navigation">
-            <div>
-              <div className="ym-section-label">{t.navGroupReddit}</div>
-              <div className="space-y-0.5">
-                {redditNavItems.map(({ id, icon: Icon, label }) => (
-                  <button
-                    key={id}
-                    type="button"
+            <CodexRailSection label={language === 'zh' ? 'Agent' : 'Agents'}>
+              {agentNavItems.map(({ id, icon: Icon, label }) => (
+                <div key={id}>
+                  <CodexRailItem
+                    active={activePage === id}
+                    icon={<Icon className="w-4 h-4" />}
+                    label={label}
                     onClick={() => setActivePage(id)}
-                    className={`ym-nav-item ${activePage === id ? 'ym-nav-item-active' : ''}`}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {label}
-                  </button>
-                ))}
+                  />
+                </div>
+              ))}
+            </CodexRailSection>
+
+            <CodexRailSection label={t.navGroupReddit}>
+              {redditNavItems.map(({ id, icon: Icon, label }) => (
+                <div key={id}>
+                  <CodexRailItem
+                    active={activePage === id}
+                    icon={<Icon className="w-4 h-4" />}
+                    label={label}
+                    onClick={() => setActivePage(id)}
+                  />
+                </div>
+              ))}
+            </CodexRailSection>
+
+            <CodexRailSection label={t.navGroupInstagram}>
+              {instagramNavItems.map(({ id, icon: Icon, label }) => (
+                <div key={id}>
+                  <CodexRailItem
+                    active={activePage === id}
+                    icon={<Icon className="w-4 h-4" />}
+                    label={label}
+                    onClick={() => setActivePage(id)}
+                  />
+                </div>
+              ))}
+            </CodexRailSection>
+
+            <CodexRailSection label={t.navGroupAssets}>
+              {libraryNavItems.map(({ id, icon: Icon, label }) => (
+                <div key={id}>
+                  <CodexRailItem
+                    active={activePage === id}
+                    icon={<Icon className="w-4 h-4" />}
+                    label={label}
+                    onClick={() => setActivePage(id)}
+                  />
+                </div>
+              ))}
+            </CodexRailSection>
+
+            <div className="mt-auto pt-4 px-1 space-y-2">
+              <label className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-[var(--ym-caption)]">
+                <span>{t.aiProviderLabel}</span>
+                <select
+                  value={aiProvider}
+                  onChange={(e) => setAiProvider(e.target.value as AiProvider)}
+                  className="bg-transparent text-[var(--ym-foreground)] focus:outline-none cursor-pointer"
+                >
+                  <option value="gemini">{t.aiProviderGemini}</option>
+                  <option value="minimax">{t.aiProviderMinimax}</option>
+                </select>
+              </label>
+              <div className="flex items-center gap-1 px-1">
+                <button
+                  type="button"
+                  onClick={() => setLanguage((lang) => (lang === 'en' ? 'zh' : 'en'))}
+                  className="ym-btn-ghost text-xs py-1 px-2"
+                >
+                  <Languages className="w-3.5 h-3.5" />
+                  {language === 'en' ? '中' : 'EN'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(true)}
+                  className="ym-btn-ghost p-2"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <div>
-              <div className="ym-section-label">{t.navGroupInstagram}</div>
-              <div className="space-y-0.5">
-                {instagramNavItems.map(({ id, icon: Icon, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setActivePage(id)}
-                    className={`ym-nav-item ${activePage === id ? 'ym-nav-item-active' : ''}`}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {label}
-                  </button>
-                ))}
+          </>
+        }
+        main={
+          <>
+            {activePage !== 'image-studio' && (
+              <div className="codex-main-header">
+                <div>
+                  <div className="codex-main-title">{pageHero.title}</div>
+                  <div className="codex-main-subtitle">{pageHero.subtitle}</div>
+                </div>
+                <div className="codex-main-actions">
+                  {isAgentPage && (
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)]">
+                      Agent
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="ym-section-label">{t.navGroupAssets}</div>
-              <div className="space-y-0.5">
-                {assetNavItems.map(({ id, icon: Icon, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setActivePage(id)}
-                    className={`ym-nav-item ${activePage === id ? 'ym-nav-item-active' : ''}`}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </nav>
-        </aside>
-
-        <div className="flex-1 overflow-y-auto">
+            )}
+            <div className={`codex-main-scroll ${activePage === 'image-studio' ? '!overflow-hidden' : ''}`}>
         {activePage === 'analyze' ? (
           <section className="flex flex-col lg:flex-row overflow-hidden max-w-7xl mx-auto px-4 sm:px-6 pb-8 min-h-[520px]">
             <div className="w-full lg:w-1/2 py-4 lg:py-6 overflow-y-auto border-b lg:border-b-0 lg:border-r border-[var(--ym-input-border)] flex flex-col">
@@ -2928,8 +2997,10 @@ export default function App() {
         ) : activePage === 'knowledge' ? (
           <KnowledgeLibrary language={language} />
         ) : null}
-        </div>
-      </main>
+            </div>
+          </>
+        }
+      />
 
       {/* Settings Modal */}
       {showSettings && (

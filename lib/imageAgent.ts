@@ -73,6 +73,7 @@ const IMAGE_AGENT_SYSTEM_PROMPT = `你是一个专业的产品图片 AI 设计�
 - 没有参考素材时，不得宣称完成了产品一致性质检
 - 如果用户要求批量生成（count > 1），每次都使用相同的产品身份信息
 - 每一次“生成/再生成/换平台”请求都必须在当前轮调用 generate_platform_image；禁止复用历史图片链接冒充新结果
+- 如果用户要求“按质检意见重跑/再生成”，必须吸收上一轮 VLM 质检问题，并在新 prompt 中明确禁止同样的多余部件、乱码文字或其他缺陷
 - 如果工具返回失败，必须原样说明工具返回的具体错误；禁止猜测或虚构“计费限制”等原因
 - 如果 review_image 返回 reviewed=false，必须说明“质检未执行成功”，不得把 null 或兜底字段描述为通过
 - 用中文回复用户，除非用户用英文提问`;
@@ -114,9 +115,110 @@ function isExplicitGenerationRequest(text: string): boolean {
   if (/(?:不要|别|停止|取消).{0,8}(?:生成|生图|主图|图片)/i.test(text)) {
     return false;
   }
-  return /生成|生图|出图|做图|画一?张|绘制|主图|适配图|生活方式图|再来一张|再生成|\b(?:generate|create|render|make)\b/i.test(
+  return /生成|生图|出图|做图|画一?张|绘制|主图|适配图|生活方式图|再来一张|再生成|重跑|再出一版|按质检|根据质检|修正|改一版|\b(?:generate|create|render|make|retry|revise|regenerate)\b/i.test(
     text,
   );
+}
+
+function isRevisionRequest(text: string): boolean {
+  return /再生成|再来一张|重跑|再出一版|按质检|根据质检|根据审查|按审查|修正|改一版|改一下|不要乱码|不要多余|去掉文字|去掉配件|\b(?:retry|revise|regenerate|again)\b/i.test(
+    text,
+  );
+}
+
+type ConversationGenerationContext = {
+  lastPlatform?: "tmall" | "jd" | "temu" | "instagram" | "custom";
+  lastReviewStatus?: string;
+  lastReviewNotes?: string;
+  lastUserPrompt?: string;
+};
+
+function extractConversationGenerationContext(
+  messages: ModelMessage[],
+): ConversationGenerationContext {
+  const context: ConversationGenerationContext = {};
+
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    const text = getMessageText(message);
+    if (!text) continue;
+
+    if (message.role === "assistant") {
+      if (!context.lastReviewNotes) {
+        const reviewMatch = text.match(
+          /VLM 质检结果：([^\n（(]+)(?:[（(]([^）)]+)[）)])?/,
+        );
+        if (reviewMatch) {
+          context.lastReviewStatus = reviewMatch[1]?.trim();
+          context.lastReviewNotes = reviewMatch[2]?.trim() || undefined;
+        } else {
+          const failedMatch = text.match(
+            /VLM 质检未执行成功：([^\n]+)/,
+          );
+          if (failedMatch) {
+            context.lastReviewStatus = "未执行成功";
+            context.lastReviewNotes = failedMatch[1]?.trim();
+          }
+        }
+      }
+
+      if (!context.lastPlatform) {
+        const platformMatch = text.match(
+          /真实生成\s+\d+\s+张\s+(tmall|jd|temu|instagram|custom)\s+图片/i,
+        );
+        if (platformMatch?.[1]) {
+          context.lastPlatform = platformMatch[1].toLowerCase() as
+            | "tmall"
+            | "jd"
+            | "temu"
+            | "instagram"
+            | "custom";
+        }
+      }
+    }
+
+    if (
+      message.role === "user" &&
+      !context.lastUserPrompt &&
+      isExplicitGenerationRequest(text) &&
+      !isRevisionRequest(text)
+    ) {
+      context.lastUserPrompt = cleanGenerationPrompt(text);
+    }
+
+    if (
+      context.lastReviewNotes &&
+      context.lastPlatform &&
+      context.lastUserPrompt
+    ) {
+      break;
+    }
+  }
+
+  return context;
+}
+
+function buildRevisionExtraPrompt(
+  latestUserText: string,
+  context: ConversationGenerationContext,
+): string {
+  const userPrompt = cleanGenerationPrompt(latestUserText);
+  const parts = [
+    context.lastUserPrompt
+      ? `[ORIGINAL REQUEST]\n${context.lastUserPrompt}`
+      : "",
+    userPrompt ? `[CURRENT REQUEST]\n${userPrompt}` : "",
+    context.lastReviewNotes
+      ? `[PREVIOUS VLM REVIEW FEEDBACK]\nStatus: ${
+          context.lastReviewStatus || "warning/failed"
+        }\nIssues: ${context.lastReviewNotes}\nFix these issues in the next generation. Do not reintroduce the same defects.`
+      : "",
+    "[HARD CONSTRAINTS]",
+    "Preserve the exact product identity from the reference image.",
+    "Do not add extra parts, caps, stands, accessories, logos, watermarks, or any text/garbled characters.",
+  ].filter(Boolean);
+
+  return parts.join("\n\n");
 }
 
 function getReferencedAssetId(
@@ -639,9 +741,27 @@ async function runDirectGeneration(
   latestUserText: string,
   referencedAssetId: string | undefined,
   sidebarParams: SidebarParams,
+  messages: ModelMessage[] = [],
 ): Promise<ImageChatResult> {
-  const platform = resolveRequestedPlatform(latestUserText, sidebarParams);
-  const prompt = cleanGenerationPrompt(latestUserText);
+  const history = extractConversationGenerationContext(messages);
+  const revision = isRevisionRequest(latestUserText);
+  const hasExplicitPlatformInText =
+    /天猫|淘宝|\btmall\b|京东|\bjd\b|jd\.com|\bte\s*mu\b|instagram|\bins\b/i.test(
+      latestUserText,
+    );
+  const resolvedPlatform = resolveRequestedPlatform(
+    latestUserText,
+    sidebarParams,
+  );
+  const platform =
+    hasExplicitPlatformInText || sidebarParams.platform
+      ? resolvedPlatform
+      : history.lastPlatform || resolvedPlatform;
+
+  const prompt = revision
+    ? buildRevisionExtraPrompt(latestUserText, history)
+    : cleanGenerationPrompt(latestUserText);
+
   const generationInput: GenerationInput = {
     assetId: referencedAssetId,
     platform,
@@ -751,7 +871,11 @@ async function runDirectGeneration(
   return {
     response: `已通过 ${providerLabel} 真实生成 ${generatedImages.length} 张 ${
       generation.platform
-    } 图片。${partialFailure}\n\n${reviewSummary}`,
+    } 图片。${
+      revision
+        ? "\n本轮已参考上一轮 VLM 质检意见进行修正重跑。"
+        : ""
+    }${partialFailure}\n\n${reviewSummary}`,
     toolCalls,
     generatedImages,
   };
@@ -773,6 +897,7 @@ export async function imageChat(
       latestUserText,
       referencedAssetId,
       sidebarParams,
+      messages,
     );
   }
   const sidebarContext = [];
