@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ChevronDown,
-  ChevronRight,
   ImageIcon,
+  Layers,
   Loader2,
   Maximize2,
   Paperclip,
+  Ratio,
   Send,
   Sparkles,
+  Store,
+  WandSparkles,
   X,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -96,7 +98,6 @@ const copy = {
     selectAsset: 'Select asset',
     noAssets: 'No assets uploaded yet',
     loadingAssets: 'Loading…',
-    sidebarToggle: 'Parameters',
     clear: 'Clear',
     approve: 'Approve',
     deny: 'Deny',
@@ -126,7 +127,6 @@ const copy = {
     selectAsset: '选择素材',
     noAssets: '暂无上传素材',
     loadingAssets: '加载中…',
-    sidebarToggle: '参数设置',
     clear: '清空对话',
     approve: '批准执行',
     deny: '拒绝',
@@ -141,7 +141,6 @@ export function ImageStudio({ language }: Props) {
   const t = copy[language];
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   const [platform, setPlatform] = useState<string>('');
   const [sizePreset, setSizePreset] = useState<string>('1:1');
@@ -149,7 +148,7 @@ export function ImageStudio({ language }: Props) {
   const [customH, setCustomH] = useState('');
   const [count, setCount] = useState(1);
   const [quality, setQuality] = useState('auto');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [openPanel, setOpenPanel] = useState<'platform' | 'size' | 'count' | 'quality' | null>(null);
 
   const [assets, setAssets] = useState<AssetPickerItem[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
@@ -159,8 +158,10 @@ export function ImageStudio({ language }: Props) {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isBusy, setIsBusy] = useState(false);
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) ?? null;
+  const platformLabel = PLATFORMS.find((p) => p.id === platform)?.label;
 
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
@@ -189,7 +190,22 @@ export function ImageStudio({ language }: Props) {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!openPanel) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) {
+        setOpenPanel(null);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [openPanel]);
+
   const conversationRef = useRef<Array<{ role: string; content: string }>>([]);
+
+  const togglePanel = (panel: NonNullable<typeof openPanel>) => {
+    setOpenPanel((current) => (current === panel ? null : panel));
+  };
 
   const handleSend = async () => {
     const visibleText = inputValue.trim();
@@ -337,143 +353,10 @@ export function ImageStudio({ language }: Props) {
               {t.clear}
             </button>
           )}
-          <button
-            type="button"
-            className="ym-btn-ghost text-xs py-1 px-3 flex items-center gap-1"
-            onClick={() => setSidebarOpen((v) => !v)}
-          >
-            {sidebarOpen ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            {t.sidebarToggle}
-          </button>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: sidebarOpen ? '220px minmax(0,1fr) 300px' : 'minmax(0,1fr) 300px' }}>
-        {sidebarOpen && (
-          <div className="border-r border-[var(--ym-input-border)] overflow-y-auto p-3 space-y-4 bg-[#fbfbfc]">
-              <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-2">{t.platformLabel}</label>
-                <div className="space-y-1">
-                  {PLATFORMS.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={`codex-rail-item ${platform === p.id ? 'is-active' : ''}`}
-                      onClick={() => setPlatform(platform === p.id ? '' : p.id)}
-                    >
-                      <span className="codex-rail-item-label">{p.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-2">{t.sizeLabel}</label>
-                {platform !== 'custom' ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {SIZE_PRESETS.map((s) => (
-                      <button
-                        key={s.value}
-                        type="button"
-                        className={`px-2.5 py-1 text-xs rounded-[6px] transition-colors font-mono ${
-                          sizePreset === s.value
-                            ? 'bg-[var(--ym-primary)] text-[var(--ym-primary-foreground)]'
-                            : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)]'
-                        }`}
-                        onClick={() => setSizePreset(s.value)}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      className="ym-input text-xs"
-                      value={customW}
-                      onChange={(e) => setCustomW(e.target.value)}
-                      placeholder="1024"
-                    />
-                    <X className="w-3 h-3 text-[var(--ym-caption)]" />
-                    <input
-                      type="number"
-                      className="ym-input text-xs"
-                      value={customH}
-                      onChange={(e) => setCustomH(e.target.value)}
-                      placeholder="1024"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-2">
-                  {t.countLabel} · {count}
-                </label>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={count}
-                  onChange={(e) => setCount(Number(e.target.value))}
-                  className="w-full accent-[var(--ym-primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-2">{t.qualityLabel}</label>
-                <div className="flex gap-1">
-                  {QUALITY_OPTIONS.map((q) => (
-                    <button
-                      key={q.id}
-                      type="button"
-                      className={`flex-1 py-1 text-[11px] rounded-[6px] ${
-                        quality === q.id
-                          ? 'bg-[var(--ym-primary)] text-[var(--ym-primary-foreground)]'
-                          : 'bg-[var(--ym-muted)]'
-                      }`}
-                      onClick={() => setQuality(q.id)}
-                    >
-                      {q.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-2">{t.refLabel}</label>
-                {selectedAsset ? (
-                  <div className="flex items-center gap-2 p-2 rounded-[8px] bg-[var(--ym-muted)]">
-                    <img
-                      src={selectedAsset.publicUrl}
-                      alt={selectedAsset.name}
-                      className="w-10 h-10 rounded-[6px] object-cover"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{selectedAsset.name}</p>
-                    </div>
-                    <button type="button" onClick={() => setSelectedAssetId(null)}>
-                      <X className="w-3 h-3 text-[var(--ym-caption)]" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="w-full text-left px-3 py-2 rounded-[8px] border border-dashed border-[var(--ym-input-border)] text-xs text-[var(--ym-caption)]"
-                    onClick={() => {
-                      setAssetPickerOpen(true);
-                      if (assets.length === 0) void loadAssets();
-                    }}
-                  >
-                    <Paperclip className="w-3 h-3 inline mr-1" />
-                    {t.refHint}
-                  </button>
-                )}
-              </div>
-          </div>
-        )}
-
+      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
         <div className="min-w-0 min-h-0 flex flex-col border-r border-[var(--ym-input-border)]">
           <div ref={scrollRef} className="codex-chat-scroll">
             {messages.length === 0 ? (
@@ -537,31 +420,219 @@ export function ImageStudio({ language }: Props) {
           <div className="codex-composer">
             <div className="codex-composer-box">
               {selectedAsset && (
-                <img
-                  src={selectedAsset.publicUrl}
-                  alt=""
-                  className="w-9 h-9 rounded-[6px] object-cover border border-[var(--ym-input-border)]"
-                  title={selectedAsset.name}
-                />
+                <div className="flex items-center gap-2 px-1">
+                  <img
+                    src={selectedAsset.publicUrl}
+                    alt=""
+                    className="w-8 h-8 rounded-[6px] object-cover border border-[var(--ym-input-border)]"
+                    title={selectedAsset.name}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-xs text-[var(--ym-muted-foreground)]">
+                    {selectedAsset.name}
+                  </span>
+                  <button
+                    type="button"
+                    className="codex-param-btn"
+                    onClick={() => setSelectedAssetId(null)}
+                    title={language === 'zh' ? '清除素材' : 'Clear reference'}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
               <textarea
                 ref={inputRef}
                 className="codex-composer-input"
-                rows={1}
+                rows={2}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t.inputPlaceholder}
                 disabled={isBusy}
               />
-              <button
-                type="button"
-                className="ym-btn-primary p-2 rounded-[8px]"
-                disabled={isBusy || !inputValue.trim()}
-                onClick={handleSend}
-              >
-                {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </button>
+              <div className="codex-composer-toolbar" ref={toolbarRef}>
+                <div className="codex-composer-tools">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'platform' ? 'is-open' : ''} ${platform ? 'is-active' : ''}`}
+                      title={platformLabel ? `${t.platformLabel}: ${platformLabel}` : t.platformLabel}
+                      onClick={() => togglePanel('platform')}
+                    >
+                      <Store className="w-4 h-4" />
+                      {platform ? <span className="codex-param-dot" /> : null}
+                    </button>
+                    {openPanel === 'platform' && (
+                      <div className="codex-param-popover">
+                        <div className="codex-param-popover-title">{t.platformLabel}</div>
+                        {PLATFORMS.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className={`codex-param-option ${platform === p.id ? 'is-active' : ''}`}
+                            onClick={() => {
+                              setPlatform(platform === p.id ? '' : p.id);
+                              setOpenPanel(null);
+                            }}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'size' ? 'is-open' : ''} ${sizePreset !== '1:1' || platform === 'custom' ? 'is-active' : ''}`}
+                      title={`${t.sizeLabel}: ${platform === 'custom' && customW && customH ? `${customW}×${customH}` : sizePreset}`}
+                      onClick={() => togglePanel('size')}
+                    >
+                      <Ratio className="w-4 h-4" />
+                      {(sizePreset !== '1:1' || (platform === 'custom' && Boolean(customW && customH))) ? (
+                        <span className="codex-param-dot" />
+                      ) : null}
+                    </button>
+                    {openPanel === 'size' && (
+                      <div className="codex-param-popover" style={{ minWidth: 220 }}>
+                        <div className="codex-param-popover-title">{t.sizeLabel}</div>
+                        {platform === 'custom' ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              className="ym-input text-xs"
+                              value={customW}
+                              onChange={(e) => setCustomW(e.target.value)}
+                              placeholder="1024"
+                            />
+                            <X className="w-3 h-3 shrink-0 text-[var(--ym-caption)]" />
+                            <input
+                              type="number"
+                              className="ym-input text-xs"
+                              value={customH}
+                              onChange={(e) => setCustomH(e.target.value)}
+                              placeholder="1024"
+                            />
+                          </div>
+                        ) : (
+                          <div className="codex-param-chips">
+                            {SIZE_PRESETS.map((s) => (
+                              <button
+                                key={s.value}
+                                type="button"
+                                className={`codex-param-chip ${sizePreset === s.value ? 'is-active' : ''}`}
+                                onClick={() => {
+                                  setSizePreset(s.value);
+                                  setOpenPanel(null);
+                                }}
+                              >
+                                {s.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'quality' ? 'is-open' : ''} ${quality !== 'auto' ? 'is-active' : ''}`}
+                      title={`${t.qualityLabel}: ${QUALITY_OPTIONS.find((q) => q.id === quality)?.label ?? quality}`}
+                      onClick={() => togglePanel('quality')}
+                    >
+                      <WandSparkles className="w-4 h-4" />
+                      {quality !== 'auto' ? <span className="codex-param-dot" /> : null}
+                    </button>
+                    {openPanel === 'quality' && (
+                      <div className="codex-param-popover">
+                        <div className="codex-param-popover-title">{t.qualityLabel}</div>
+                        <div className="codex-param-chips">
+                          {QUALITY_OPTIONS.map((q) => (
+                            <button
+                              key={q.id}
+                              type="button"
+                              className={`codex-param-chip ${quality === q.id ? 'is-active' : ''}`}
+                              onClick={() => {
+                                setQuality(q.id);
+                                setOpenPanel(null);
+                              }}
+                            >
+                              {q.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'count' ? 'is-open' : ''} ${count > 1 ? 'is-active' : ''}`}
+                      title={`${t.countLabel}: ${count}`}
+                      onClick={() => togglePanel('count')}
+                    >
+                      <Layers className="w-4 h-4" />
+                      {count > 1 ? <span className="codex-param-dot" /> : null}
+                    </button>
+                    {openPanel === 'count' && (
+                      <div className="codex-param-popover" style={{ minWidth: 200 }}>
+                        <div className="codex-param-popover-title">
+                          {t.countLabel} · {count}
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={10}
+                          value={count}
+                          onChange={(e) => setCount(Number(e.target.value))}
+                          className="w-full accent-[var(--ym-primary)]"
+                        />
+                        <div className="codex-param-chips mt-2">
+                          {[1, 2, 4, 6, 8, 10].map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              className={`codex-param-chip ${count === n ? 'is-active' : ''}`}
+                              onClick={() => setCount(n)}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${selectedAssetId ? 'is-active' : ''}`}
+                      title={selectedAsset ? `${t.refLabel}: ${selectedAsset.name}` : t.refLabel}
+                      onClick={() => {
+                        setOpenPanel(null);
+                        setAssetPickerOpen(true);
+                        if (assets.length === 0) void loadAssets();
+                      }}
+                    >
+                      <Paperclip className="w-4 h-4" />
+                      {selectedAssetId ? <span className="codex-param-dot" /> : null}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="ym-btn-primary p-2 rounded-[8px]"
+                  disabled={isBusy || !inputValue.trim()}
+                  onClick={handleSend}
+                >
+                  {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -604,7 +675,10 @@ export function ImageStudio({ language }: Props) {
           <div className="bg-[var(--ym-surface)] rounded-[16px] max-w-lg w-full p-6 border border-[var(--ym-input-border)] max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold">{t.selectAsset}</h3>
-              <button type="button" onClick={() => setAssetPickerOpen(false)}>
+              <button
+                type="button"
+                onClick={() => setAssetPickerOpen(false)}
+              >
                 <X className="w-4 h-4 text-[var(--ym-caption)]" />
               </button>
             </div>
