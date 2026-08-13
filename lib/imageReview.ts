@@ -3,12 +3,27 @@ import type { ProductIdentityForPrompt } from "./platformStyles.js";
 
 export type ReviewResult = {
   status: "passed" | "warning" | "failed";
-  shapeOk: boolean;
-  colorOk: boolean;
-  brandOk: boolean;
-  overallUsable: boolean;
+  reviewed: boolean;
+  shapeOk: boolean | null;
+  colorOk: boolean | null;
+  brandOk: boolean | null;
+  overallUsable: boolean | null;
   notes: string;
 };
+
+const DEFAULT_REVIEW_MODEL = "gemini-3.6-flash";
+
+function unavailableReview(notes: string): ReviewResult {
+  return {
+    status: "warning",
+    reviewed: false,
+    shapeOk: null,
+    colorOk: null,
+    brandOk: null,
+    overallUsable: null,
+    notes,
+  };
+}
 
 function getGeminiClient(): GoogleGenAI | null {
   const key = process.env.GEMINI_API_KEY?.trim();
@@ -43,7 +58,9 @@ export async function reviewGeneratedImage(input: {
 }): Promise<ReviewResult> {
   const ai = getGeminiClient();
   if (!ai) {
-    return { status: "warning", shapeOk: true, colorOk: true, brandOk: true, overallUsable: true, notes: "VLM review skipped: GEMINI_API_KEY not configured." };
+    return unavailableReview(
+      "VLM review skipped: GEMINI_API_KEY not configured.",
+    );
   }
 
   const identityContext: string[] = [];
@@ -68,7 +85,8 @@ Respond in EXACTLY this JSON format, nothing else:
 {"shapeOk":true/false,"colorOk":true/false,"brandOk":true/false,"overallUsable":true/false,"notes":"brief explanation of any issues"}`;
 
   try {
-    const model = process.env.GEMINI_REVIEW_MODEL || "gemini-2.5-flash";
+    const model =
+      process.env.GEMINI_REVIEW_MODEL?.trim() || DEFAULT_REVIEW_MODEL;
     const response = await ai.models.generateContent({
       model,
       contents: [
@@ -86,7 +104,9 @@ Respond in EXACTLY this JSON format, nothing else:
     const text = response.text?.trim() ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return { status: "warning", shapeOk: true, colorOk: true, brandOk: true, overallUsable: true, notes: `VLM returned non-JSON: ${text.slice(0, 200)}` };
+      return unavailableReview(
+        `VLM returned non-JSON: ${text.slice(0, 200)}`,
+      );
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as {
@@ -97,10 +117,21 @@ Respond in EXACTLY this JSON format, nothing else:
       notes?: string;
     };
 
-    const shapeOk = parsed.shapeOk !== false;
-    const colorOk = parsed.colorOk !== false;
-    const brandOk = parsed.brandOk !== false;
-    const overallUsable = parsed.overallUsable !== false;
+    if (
+      typeof parsed.shapeOk !== "boolean" ||
+      typeof parsed.colorOk !== "boolean" ||
+      typeof parsed.brandOk !== "boolean" ||
+      typeof parsed.overallUsable !== "boolean"
+    ) {
+      return unavailableReview(
+        "VLM review returned incomplete boolean fields.",
+      );
+    }
+
+    const shapeOk = parsed.shapeOk;
+    const colorOk = parsed.colorOk;
+    const brandOk = parsed.brandOk;
+    const overallUsable = parsed.overallUsable;
     const notes = String(parsed.notes ?? "");
 
     const allOk = shapeOk && colorOk && brandOk && overallUsable;
@@ -111,9 +142,17 @@ Respond in EXACTLY this JSON format, nothing else:
     else if (anyFail) status = "failed";
     else status = "warning";
 
-    return { status, shapeOk, colorOk, brandOk, overallUsable, notes };
+    return {
+      status,
+      reviewed: true,
+      shapeOk,
+      colorOk,
+      brandOk,
+      overallUsable,
+      notes,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return { status: "warning", shapeOk: true, colorOk: true, brandOk: true, overallUsable: true, notes: `VLM review error: ${msg}` };
+    return unavailableReview(`VLM review error: ${msg}`);
   }
 }

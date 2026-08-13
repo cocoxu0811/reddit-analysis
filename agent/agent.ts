@@ -1,10 +1,6 @@
 import { defineAgent } from "eve";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY!,
-});
+import { getMiniMaxAgentModel } from "../lib/minimaxProvider.js";
 
 export default defineAgent({
-  model: google(process.env.GEMINI_AGENT_MODEL || "gemini-2.5-flash"),
+  model: getMiniMaxAgentModel(),
 });

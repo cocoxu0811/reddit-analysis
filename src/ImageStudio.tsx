@@ -1,16 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ChevronDown,
-  ChevronRight,
   ImageIcon,
+  Layers,
   Loader2,
   Maximize2,
   Paperclip,
+  Ratio,
   Send,
   Sparkles,
+  Store,
+  WandSparkles,
   X,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { CodexToolStep } from './codex/CodexWorkspace';
 
 type PlatformOption = {
   id: string;
@@ -39,6 +42,7 @@ type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  referenceAsset?: Pick<AssetPickerItem, 'id' | 'name' | 'publicUrl'>;
   generatedImages?: GeneratedImage[];
   toolCalls?: Array<{ toolName: string; input: unknown; output: unknown }>;
 };
@@ -94,7 +98,6 @@ const copy = {
     selectAsset: 'Select asset',
     noAssets: 'No assets uploaded yet',
     loadingAssets: 'Loading…',
-    sidebarToggle: 'Parameters',
     clear: 'Clear',
     approve: 'Approve',
     deny: 'Deny',
@@ -124,7 +127,6 @@ const copy = {
     selectAsset: '选择素材',
     noAssets: '暂无上传素材',
     loadingAssets: '加载中…',
-    sidebarToggle: '参数设置',
     clear: '清空对话',
     approve: '批准执行',
     deny: '拒绝',
@@ -139,7 +141,6 @@ export function ImageStudio({ language }: Props) {
   const t = copy[language];
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   const [platform, setPlatform] = useState<string>('');
   const [sizePreset, setSizePreset] = useState<string>('1:1');
@@ -147,7 +148,7 @@ export function ImageStudio({ language }: Props) {
   const [customH, setCustomH] = useState('');
   const [count, setCount] = useState(1);
   const [quality, setQuality] = useState('auto');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [openPanel, setOpenPanel] = useState<'platform' | 'size' | 'count' | 'quality' | null>(null);
 
   const [assets, setAssets] = useState<AssetPickerItem[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
@@ -157,8 +158,10 @@ export function ImageStudio({ language }: Props) {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isBusy, setIsBusy] = useState(false);
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) ?? null;
+  const platformLabel = PLATFORMS.find((p) => p.id === platform)?.label;
 
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
@@ -187,22 +190,49 @@ export function ImageStudio({ language }: Props) {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!openPanel) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) {
+        setOpenPanel(null);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [openPanel]);
+
   const conversationRef = useRef<Array<{ role: string; content: string }>>([]);
 
+  const togglePanel = (panel: NonNullable<typeof openPanel>) => {
+    setOpenPanel((current) => (current === panel ? null : panel));
+  };
+
   const handleSend = async () => {
-    let text = inputValue.trim();
-    if (!text || isBusy) return;
+    const visibleText = inputValue.trim();
+    if (!visibleText || isBusy) return;
 
-    if (selectedAssetId) {
-      text = `[参考素材ID: ${selectedAssetId}]\n${text}`;
-    }
+    const referenceAsset = selectedAsset
+      ? {
+          id: selectedAsset.id,
+          name: selectedAsset.name,
+          publicUrl: selectedAsset.publicUrl,
+        }
+      : undefined;
+    const agentText = selectedAssetId
+      ? `[参考素材ID: ${selectedAssetId}]\n${visibleText}`
+      : visibleText;
 
-    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', text };
+    const userMsg: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      text: visibleText,
+      referenceAsset,
+    };
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
     setIsBusy(true);
 
-    conversationRef.current.push({ role: 'user', content: text });
+    conversationRef.current.push({ role: 'user', content: agentText });
 
     const sidebarParams: Record<string, unknown> = {};
     if (platform) sidebarParams.platform = platform;
@@ -215,6 +245,7 @@ export function ImageStudio({ language }: Props) {
     }
     if (count > 1) sidebarParams.count = count;
     if (quality !== 'auto') sidebarParams.quality = quality;
+    if (selectedAssetId) sidebarParams.selectedAssetId = selectedAssetId;
 
     try {
       const res = await fetch('/api/image-agent/chat', {
@@ -260,6 +291,8 @@ export function ImageStudio({ language }: Props) {
     setInputValue('');
   };
 
+  const allGeneratedImages = messages.flatMap((msg) => msg.generatedImages ?? []);
+
   const renderImages = (images: GeneratedImage[]) => (
     <div className="mt-3 grid grid-cols-2 gap-2">
       {images.map((img, i) => (
@@ -271,7 +304,7 @@ export function ImageStudio({ language }: Props) {
             onClick={() => window.open(img.publicUrl, '_blank')}
           />
           <div className="absolute bottom-1 left-1 right-1 flex justify-between items-center">
-            <span className="text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-[4px]">
+            <span className="text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-[4px] font-mono">
               {img.platform}
             </span>
             <button
@@ -290,10 +323,14 @@ export function ImageStudio({ language }: Props) {
   const renderToolCalls = (toolCalls: ChatMessage['toolCalls']) => {
     if (!toolCalls || toolCalls.length === 0) return null;
     return (
-      <div className="mt-2 space-y-1">
+      <div className="mt-3 space-y-1">
         {toolCalls.map((tc, i) => (
-          <div key={i} className="text-[10px] px-2 py-1 rounded-[6px] bg-black/5 text-[var(--ym-caption)]">
-            <span className="font-medium">{t.toolRunning}:</span> {tc.toolName}
+          <div key={i}>
+            <CodexToolStep
+              label={tc.toolName}
+              status="done"
+              detail={t.toolRunning}
+            />
           </div>
         ))}
       </div>
@@ -301,213 +338,38 @@ export function ImageStudio({ language }: Props) {
   };
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-10 h-[calc(100vh-140px)] flex flex-col">
-      <div className="flex items-center justify-between mb-4">
+    <section className="h-full min-h-0 flex flex-col">
+      <div className="codex-main-header">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--ym-foreground)] flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[var(--ym-primary)]" />
+          <div className="codex-main-title flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
             {t.title}
-          </h2>
-          <p className="text-xs text-[var(--ym-caption)] mt-0.5">{t.subtitle}</p>
+          </div>
+          <div className="codex-main-subtitle">{t.subtitle}</div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="codex-main-actions">
           {messages.length > 0 && (
             <button type="button" className="ym-btn-ghost text-xs py-1 px-3" onClick={handleClear}>
               {t.clear}
             </button>
           )}
-          <button
-            type="button"
-            className="ym-btn-ghost text-xs py-1 px-3 flex items-center gap-1"
-            onClick={() => setSidebarOpen((v) => !v)}
-          >
-            {sidebarOpen ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            {t.sidebarToggle}
-          </button>
         </div>
       </div>
 
-      <div className="flex-1 flex gap-4 min-h-0">
-        {/* Sidebar */}
-        {sidebarOpen && (
-          <div className="w-64 shrink-0 overflow-y-auto">
-            <div className="ym-card p-4 space-y-4">
-              {/* Platform */}
-              <div>
-                <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.platformLabel}</label>
-                <div className="space-y-1">
-                  {PLATFORMS.map((p) => (
-                    <label
-                      key={p.id}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-[8px] cursor-pointer text-sm transition-colors ${
-                        platform === p.id
-                          ? 'bg-[var(--ym-primary)] text-white'
-                          : 'hover:bg-[var(--ym-muted)] text-[var(--ym-foreground)]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="platform"
-                        value={p.id}
-                        checked={platform === p.id}
-                        onChange={() => setPlatform(platform === p.id ? '' : p.id)}
-                        className="sr-only"
-                      />
-                      <span
-                        className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
-                          platform === p.id ? 'border-white' : 'border-[var(--ym-input-border)]'
-                        }`}
-                      >
-                        {platform === p.id && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </span>
-                      {p.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Size */}
-              <div>
-                <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.sizeLabel}</label>
-                {platform !== 'custom' ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {SIZE_PRESETS.map((s) => (
-                      <button
-                        key={s.value}
-                        type="button"
-                        className={`px-2.5 py-1 text-xs rounded-[8px] transition-colors ${
-                          sizePreset === s.value
-                            ? 'bg-[var(--ym-primary)] text-white'
-                            : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] hover:bg-[var(--ym-input-border)]'
-                        }`}
-                        onClick={() => setSizePreset(s.value)}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <label className="block text-[10px] text-[var(--ym-caption)] mb-0.5">{t.customW}</label>
-                      <input
-                        type="number"
-                        className="ym-input text-xs"
-                        value={customW}
-                        onChange={(e) => setCustomW(e.target.value)}
-                        placeholder="1024"
-                      />
-                    </div>
-                    <X className="w-3 h-3 text-[var(--ym-caption)] mt-3" />
-                    <div className="flex-1">
-                      <label className="block text-[10px] text-[var(--ym-caption)] mb-0.5">{t.customH}</label>
-                      <input
-                        type="number"
-                        className="ym-input text-xs"
-                        value={customH}
-                        onChange={(e) => setCustomH(e.target.value)}
-                        placeholder="1024"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Count */}
-              <div>
-                <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">
-                  {t.countLabel}
-                  <span className="ml-2 text-[var(--ym-primary)] font-semibold">{count}</span>
-                </label>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={count}
-                  onChange={(e) => setCount(Number(e.target.value))}
-                  className="w-full accent-[var(--ym-primary)]"
-                />
-                <div className="flex justify-between text-[10px] text-[var(--ym-caption)]">
-                  <span>1</span>
-                  <span>10</span>
-                </div>
-              </div>
-
-              {/* Quality */}
-              <div>
-                <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.qualityLabel}</label>
-                <div className="flex gap-1.5">
-                  {QUALITY_OPTIONS.map((q) => (
-                    <button
-                      key={q.id}
-                      type="button"
-                      className={`flex-1 py-1 text-xs rounded-[8px] transition-colors ${
-                        quality === q.id
-                          ? 'bg-[var(--ym-primary)] text-white'
-                          : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] hover:bg-[var(--ym-input-border)]'
-                      }`}
-                      onClick={() => setQuality(q.id)}
-                    >
-                      {q.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Reference asset */}
-              <div>
-                <label className="block text-xs font-medium text-[var(--ym-muted-foreground)] mb-2">{t.refLabel}</label>
-                {selectedAsset ? (
-                  <div className="flex items-center gap-2 p-2 rounded-[8px] bg-[var(--ym-muted)]">
-                    <img
-                      src={selectedAsset.publicUrl}
-                      alt={selectedAsset.name}
-                      className="w-10 h-10 rounded-[6px] object-cover"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-[var(--ym-foreground)] truncate">{selectedAsset.name}</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="text-[var(--ym-caption)] hover:text-[var(--ym-foreground)]"
-                      onClick={() => setSelectedAssetId(null)}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="w-full text-left px-3 py-2 rounded-[8px] border border-dashed border-[var(--ym-input-border)] text-xs text-[var(--ym-caption)] hover:bg-[var(--ym-muted)] transition-colors"
-                    onClick={() => {
-                      setAssetPickerOpen(true);
-                      if (assets.length === 0) void loadAssets();
-                    }}
-                  >
-                    <Paperclip className="w-3 h-3 inline mr-1" />
-                    {t.refHint}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Chat area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div ref={scrollRef} className="flex-1 overflow-y-auto pr-1 space-y-4 pb-4">
+      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
+        <div className="min-w-0 min-h-0 flex flex-col border-r border-[var(--ym-input-border)]">
+          <div ref={scrollRef} className="codex-chat-scroll">
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
-                <div className="w-16 h-16 rounded-full bg-[var(--ym-muted)] flex items-center justify-center">
-                  <Sparkles className="w-8 h-8 text-[var(--ym-primary)]" />
-                </div>
-                <p className="text-sm text-[var(--ym-muted-foreground)] max-w-md">{t.emptyHint}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
+              <div className="codex-empty">
+                <Sparkles className="w-8 h-8 opacity-70" />
+                <div className="codex-empty-title">{t.title}</div>
+                <p className="codex-empty-sub">{t.emptyHint}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full mt-2">
                   {t.examplePrompts.map((prompt, i) => (
                     <button
                       key={i}
                       type="button"
-                      className="text-left px-3 py-2.5 rounded-[12px] border border-[var(--ym-input-border)] text-xs text-[var(--ym-muted-foreground)] hover:bg-[var(--ym-muted)] hover:text-[var(--ym-foreground)] transition-colors"
+                      className="text-left px-3 py-2.5 rounded-[10px] border border-[var(--ym-input-border)] text-xs text-[var(--ym-muted-foreground)] hover:bg-[var(--ym-muted)] hover:text-[var(--ym-foreground)] transition-colors"
                       onClick={() => handleExampleClick(prompt)}
                     >
                       {prompt}
@@ -519,16 +381,26 @@ export function ImageStudio({ language }: Props) {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`codex-msg ${msg.role === 'user' ? 'codex-msg-user' : 'codex-msg-assistant'}`}
                 >
-                  <div
-                    className={`max-w-[80%] rounded-[16px] px-4 py-3 text-sm ${
-                      msg.role === 'user'
-                        ? 'bg-[var(--ym-primary)] text-white rounded-br-[4px]'
-                        : 'bg-[var(--ym-muted)] text-[var(--ym-foreground)] rounded-bl-[4px]'
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                  <div className="codex-msg-bubble">
+                    {msg.referenceAsset && (
+                      <button
+                        type="button"
+                        className="mb-2 flex w-full items-center gap-2 rounded-[10px] bg-black/5 p-2 text-left hover:bg-black/8"
+                        onClick={() => window.open(msg.referenceAsset?.publicUrl, '_blank')}
+                      >
+                        <img
+                          src={msg.referenceAsset.publicUrl}
+                          alt={msg.referenceAsset.name}
+                          className="h-12 w-12 shrink-0 rounded-[8px] object-cover"
+                        />
+                        <span className="min-w-0 truncate text-xs opacity-90">
+                          {msg.referenceAsset.name}
+                        </span>
+                      </button>
+                    )}
+                    <div>{msg.text}</div>
                     {msg.generatedImages && msg.generatedImages.length > 0 && renderImages(msg.generatedImages)}
                     {renderToolCalls(msg.toolCalls)}
                   </div>
@@ -536,8 +408,8 @@ export function ImageStudio({ language }: Props) {
               ))
             )}
             {isBusy && (
-              <div className="flex justify-start">
-                <div className="bg-[var(--ym-muted)] rounded-[16px] rounded-bl-[4px] px-4 py-3 text-sm text-[var(--ym-muted-foreground)] flex items-center gap-2">
+              <div className="codex-msg codex-msg-assistant">
+                <div className="flex items-center gap-2 text-sm text-[var(--ym-caption)]">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   {t.sending}
                 </div>
@@ -545,58 +417,269 @@ export function ImageStudio({ language }: Props) {
             )}
           </div>
 
-          {/* Input area */}
-          <div className="shrink-0 pt-2">
-            <div className="ym-card p-3 flex items-end gap-2">
+          <div className="codex-composer">
+            <div className="codex-composer-box">
               {selectedAsset && (
-                <div className="shrink-0 pb-1">
+                <div className="flex items-center gap-2 px-1">
                   <img
                     src={selectedAsset.publicUrl}
                     alt=""
                     className="w-8 h-8 rounded-[6px] object-cover border border-[var(--ym-input-border)]"
                     title={selectedAsset.name}
                   />
+                  <span className="min-w-0 flex-1 truncate text-xs text-[var(--ym-muted-foreground)]">
+                    {selectedAsset.name}
+                  </span>
+                  <button
+                    type="button"
+                    className="codex-param-btn"
+                    onClick={() => setSelectedAssetId(null)}
+                    title={language === 'zh' ? '清除素材' : 'Clear reference'}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
               <textarea
                 ref={inputRef}
-                className="flex-1 resize-none bg-transparent border-none outline-none text-sm text-[var(--ym-foreground)] placeholder:text-[var(--ym-caption)] min-h-[36px] max-h-[120px]"
-                rows={1}
+                className="codex-composer-input"
+                rows={2}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t.inputPlaceholder}
                 disabled={isBusy}
               />
-              <button
-                type="button"
-                className="shrink-0 ym-btn-primary p-2 rounded-[10px]"
-                disabled={isBusy || !inputValue.trim()}
-                onClick={handleSend}
-              >
-                {isBusy ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </button>
+              <div className="codex-composer-toolbar" ref={toolbarRef}>
+                <div className="codex-composer-tools">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'platform' ? 'is-open' : ''} ${platform ? 'is-active' : ''}`}
+                      title={platformLabel ? `${t.platformLabel}: ${platformLabel}` : t.platformLabel}
+                      onClick={() => togglePanel('platform')}
+                    >
+                      <Store className="w-4 h-4" />
+                      {platform ? <span className="codex-param-dot" /> : null}
+                    </button>
+                    {openPanel === 'platform' && (
+                      <div className="codex-param-popover">
+                        <div className="codex-param-popover-title">{t.platformLabel}</div>
+                        {PLATFORMS.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className={`codex-param-option ${platform === p.id ? 'is-active' : ''}`}
+                            onClick={() => {
+                              setPlatform(platform === p.id ? '' : p.id);
+                              setOpenPanel(null);
+                            }}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'size' ? 'is-open' : ''} ${sizePreset !== '1:1' || platform === 'custom' ? 'is-active' : ''}`}
+                      title={`${t.sizeLabel}: ${platform === 'custom' && customW && customH ? `${customW}×${customH}` : sizePreset}`}
+                      onClick={() => togglePanel('size')}
+                    >
+                      <Ratio className="w-4 h-4" />
+                      {(sizePreset !== '1:1' || (platform === 'custom' && Boolean(customW && customH))) ? (
+                        <span className="codex-param-dot" />
+                      ) : null}
+                    </button>
+                    {openPanel === 'size' && (
+                      <div className="codex-param-popover" style={{ minWidth: 220 }}>
+                        <div className="codex-param-popover-title">{t.sizeLabel}</div>
+                        {platform === 'custom' ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              className="ym-input text-xs"
+                              value={customW}
+                              onChange={(e) => setCustomW(e.target.value)}
+                              placeholder="1024"
+                            />
+                            <X className="w-3 h-3 shrink-0 text-[var(--ym-caption)]" />
+                            <input
+                              type="number"
+                              className="ym-input text-xs"
+                              value={customH}
+                              onChange={(e) => setCustomH(e.target.value)}
+                              placeholder="1024"
+                            />
+                          </div>
+                        ) : (
+                          <div className="codex-param-chips">
+                            {SIZE_PRESETS.map((s) => (
+                              <button
+                                key={s.value}
+                                type="button"
+                                className={`codex-param-chip ${sizePreset === s.value ? 'is-active' : ''}`}
+                                onClick={() => {
+                                  setSizePreset(s.value);
+                                  setOpenPanel(null);
+                                }}
+                              >
+                                {s.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'quality' ? 'is-open' : ''} ${quality !== 'auto' ? 'is-active' : ''}`}
+                      title={`${t.qualityLabel}: ${QUALITY_OPTIONS.find((q) => q.id === quality)?.label ?? quality}`}
+                      onClick={() => togglePanel('quality')}
+                    >
+                      <WandSparkles className="w-4 h-4" />
+                      {quality !== 'auto' ? <span className="codex-param-dot" /> : null}
+                    </button>
+                    {openPanel === 'quality' && (
+                      <div className="codex-param-popover">
+                        <div className="codex-param-popover-title">{t.qualityLabel}</div>
+                        <div className="codex-param-chips">
+                          {QUALITY_OPTIONS.map((q) => (
+                            <button
+                              key={q.id}
+                              type="button"
+                              className={`codex-param-chip ${quality === q.id ? 'is-active' : ''}`}
+                              onClick={() => {
+                                setQuality(q.id);
+                                setOpenPanel(null);
+                              }}
+                            >
+                              {q.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${openPanel === 'count' ? 'is-open' : ''} ${count > 1 ? 'is-active' : ''}`}
+                      title={`${t.countLabel}: ${count}`}
+                      onClick={() => togglePanel('count')}
+                    >
+                      <Layers className="w-4 h-4" />
+                      {count > 1 ? <span className="codex-param-dot" /> : null}
+                    </button>
+                    {openPanel === 'count' && (
+                      <div className="codex-param-popover" style={{ minWidth: 200 }}>
+                        <div className="codex-param-popover-title">
+                          {t.countLabel} · {count}
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={10}
+                          value={count}
+                          onChange={(e) => setCount(Number(e.target.value))}
+                          className="w-full accent-[var(--ym-primary)]"
+                        />
+                        <div className="codex-param-chips mt-2">
+                          {[1, 2, 4, 6, 8, 10].map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              className={`codex-param-chip ${count === n ? 'is-active' : ''}`}
+                              onClick={() => setCount(n)}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`codex-param-btn ${selectedAssetId ? 'is-active' : ''}`}
+                      title={selectedAsset ? `${t.refLabel}: ${selectedAsset.name}` : t.refLabel}
+                      onClick={() => {
+                        setOpenPanel(null);
+                        setAssetPickerOpen(true);
+                        if (assets.length === 0) void loadAssets();
+                      }}
+                    >
+                      <Paperclip className="w-4 h-4" />
+                      {selectedAssetId ? <span className="codex-param-dot" /> : null}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="ym-btn-primary p-2 rounded-[8px]"
+                  disabled={isBusy || !inputValue.trim()}
+                  onClick={handleSend}
+                >
+                  {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
+
+        <aside className="min-h-0 overflow-y-auto bg-[#fbfbfc] p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--ym-caption)] mb-3">
+            Artifacts
+          </div>
+          {allGeneratedImages.length === 0 ? (
+            <div className="text-xs text-[var(--ym-caption)] leading-relaxed">
+              {language === 'zh' ? '生成结果会显示在这里。' : 'Generated images appear here.'}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allGeneratedImages.map((img, i) => (
+                <button
+                  key={`${img.generationId}-${i}`}
+                  type="button"
+                  className="block w-full text-left"
+                  onClick={() => window.open(img.publicUrl, '_blank')}
+                >
+                  <img
+                    src={img.publicUrl}
+                    alt={img.platform}
+                    className="w-full rounded-[10px] border border-[var(--ym-input-border)] object-cover"
+                  />
+                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--ym-caption)] font-mono">
+                    <span>{img.platform}</span>
+                    <ImageIcon className="w-3 h-3" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </aside>
       </div>
 
-      {/* Asset picker modal */}
       {assetPickerOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--ym-surface)] rounded-[24px] max-w-lg w-full p-6 shadow-[var(--ym-shadow-prompt)] animate-in zoom-in-95 duration-200 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--ym-surface)] rounded-[16px] max-w-lg w-full p-6 border border-[var(--ym-input-border)] max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-[var(--ym-foreground)]">{t.selectAsset}</h3>
+              <h3 className="text-sm font-semibold">{t.selectAsset}</h3>
               <button
                 type="button"
-                className="text-[var(--ym-caption)] hover:text-[var(--ym-foreground)]"
                 onClick={() => setAssetPickerOpen(false)}
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 text-[var(--ym-caption)]" />
               </button>
             </div>
             {assetsLoading ? (
@@ -611,9 +694,9 @@ export function ImageStudio({ language }: Props) {
                   <button
                     key={asset.id}
                     type="button"
-                    className={`rounded-[12px] border-2 p-2 transition-colors ${
+                    className={`rounded-[12px] border p-2 transition-colors ${
                       selectedAssetId === asset.id
-                        ? 'border-[var(--ym-primary)] bg-[var(--ym-primary)]/5'
+                        ? 'border-[var(--ym-primary)] bg-black/5'
                         : 'border-transparent hover:border-[var(--ym-input-border)]'
                     }`}
                     onClick={() => {
@@ -626,7 +709,7 @@ export function ImageStudio({ language }: Props) {
                       alt={asset.name}
                       className="w-full aspect-square object-cover rounded-[8px] mb-1"
                     />
-                    <p className="text-xs text-[var(--ym-foreground)] truncate">{asset.name}</p>
+                    <p className="text-xs truncate">{asset.name}</p>
                   </button>
                 ))}
               </div>

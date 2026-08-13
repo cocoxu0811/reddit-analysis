@@ -7,6 +7,7 @@ export const ORIGINALS_BUCKET = "product-originals";
 export const GENERATED_BUCKET = "product-generated";
 
 let adminClient: SupabaseClient | null = null;
+const bucketReady = new Map<string, Promise<void>>();
 
 function requireEnv(name: string): string {
   const v = process.env[name]?.trim();
@@ -49,12 +50,46 @@ function detectBucket(storagePath: string): string {
   return PRODUCT_MEDIA_BUCKET;
 }
 
+async function ensureStorageBucket(bucket: string): Promise<void> {
+  const existing = bucketReady.get(bucket);
+  if (existing) return existing;
+
+  const setup = (async () => {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.storage.getBucket(bucket);
+    if (data && !error) return;
+
+    const { error: createError } = await supabase.storage.createBucket(bucket, {
+      public: true,
+      fileSizeLimit: 15 * 1024 * 1024,
+      allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
+    });
+    if (
+      createError &&
+      !/already exists|duplicate/i.test(createError.message)
+    ) {
+      throw new Error(
+        `Storage bucket "${bucket}" is missing and could not be created: ${createError.message}`,
+      );
+    }
+  })();
+
+  bucketReady.set(bucket, setup);
+  try {
+    await setup;
+  } catch (error) {
+    bucketReady.delete(bucket);
+    throw error;
+  }
+}
+
 export async function uploadToStorage(
   storagePath: string,
   buffer: Buffer,
   mimeType: string
 ): Promise<{ publicUrl: string }> {
   const bucket = detectBucket(storagePath);
+  await ensureStorageBucket(bucket);
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.storage.from(bucket).upload(storagePath, buffer, {
     contentType: mimeType,
